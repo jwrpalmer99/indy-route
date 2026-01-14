@@ -1,0 +1,88 @@
+<style>
+    .indy-route-manager .window-content {
+        overflow: auto;
+        padding: 12px 16px;
+    }
+    .indy-route-manager form {
+        display: grid;
+        gap: 10px;
+    }
+    .indy-route-manager .route-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .indy-route-manager .route-toolbar-actions {
+        display: flex;
+        gap: 6px;
+    }
+    .indy-route-manager .route-list {
+        display: grid;
+        gap: 10px;
+    }
+    .indy-route-manager .route-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        padding: 8px;
+        border: 1px solid var(--color-border-light-2);
+        border-radius: 8px;
+        background: var(--color-bg);
+    }
+    .indy-route-manager .route-item.selected {
+        border-color: var(--color-border-highlight);
+        box-shadow: 0 0 0 1px var(--color-border-highlight) inset;
+    }
+    .indy-route-manager .route-name {
+        width: 100%;
+    }
+    .indy-route-manager .route-actions {
+        display: flex;
+        gap: 6px;
+        justify-content: flex-end;
+    }
+</style>
+
+<form class="indy-route-manager">
+    <div class="route-toolbar">
+        <button type="button" data-action="draw-route">Draw New Route</button>
+        <div class="route-toolbar-actions">
+            <button type="button" data-action="export-routes">Export Routes</button>
+            <button type="button" data-action="import-routes">Import Routes</button>
+        </div>
+    </div>
+
+    <div class="route-list">
+        {{#if routes.length}}
+            {{#each routes as |route|}}
+                <div class="route-item {{#if (eq route.id ../selectedId)}}selected{{/if}}" data-action="select-route" data-route-id="{{route.id}}">
+                    <input class="route-name" type="text" data-action="rename-route" data-route-id="{{route.id}}" value="{{route.name}}" />
+                    <div class="route-actions">
+                        <button type="button" data-action="play-route" data-route-id="{{route.id}}" data-tooltip="Play">
+                            <i class="fa-solid fa-play"></i>
+                        </button>
+                        <button type="button" data-action="preview-route" data-route-id="{{route.id}}" data-tooltip="Preview">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                        <button type="button" data-action="edit-points" data-route-id="{{route.id}}" data-tooltip="Edit Points">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button type="button" data-action="edit-route" data-route-id="{{route.id}}" data-tooltip="Style">
+                            <i class="fa-solid fa-sliders"></i>
+                        </button>
+                        <button type="button" data-action="clear-route" data-route-id="{{route.id}}" data-tooltip="Clear">
+                            <i class="fa-solid fa-eraser"></i>
+                        </button>
+                        <button type="button" data-action="delete-route" data-route-id="{{route.id}}" data-tooltip="Delete">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            {{/each}}
+        {{else}}
+            <p class="hint">No routes recorded for this scene.</p>
+        {{/if}}
+    </div>
+</form>

@@ -1,0 +1,125 @@
+<form>
+    <div class="form-group">
+        <label>Route Name</label>
+        <input type="text" name="route.name" value="{{route.name}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Scale Line/Dot/Speed by Map Size</label>
+        <input type="checkbox" name="settings.scaleWithMap" {{checked settings.scaleWithMap}} />
+        <p class="hint">When enabled, 100 map pixels = 1 width unit.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Cinematic Movement</label>
+        <input type="checkbox" name="settings.cinematicMovement" {{checked settings.cinematicMovement}} />
+        <p class="hint">Pan and zoom the view while the route animates.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Line Color</label>
+        <input type="color" name="settings.lineColor" value="{{settings.lineColor}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Line Alpha</label>
+        <input type="number" step="0.05" min="0" max="1" name="settings.lineAlpha" value="{{settings.lineAlpha}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Line Width</label>
+        <input type="number" min="1" max="30" name="settings.lineWidth" value="{{settings.lineWidth}}" {{#if settings.scaleWithMap}}disabled{{/if}} />
+    </div>
+
+    <hr/>
+
+    <div class="form-group">
+        <label>Show Dot</label>
+        <input type="checkbox" name="settings.showDot" {{checked settings.showDot}} />
+    </div>
+
+    <div class="form-group">
+        <label>Dot Color</label>
+        <input type="color" name="settings.dotColor" value="{{settings.dotColor}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Dot Radius</label>
+        <input type="number" min="1" max="30" name="settings.dotRadius" value="{{settings.dotRadius}}" {{#if settings.scaleWithMap}}disabled{{/if}} />
+    </div>
+
+    <hr/>
+
+    <div class="form-group">
+        <label>Draw Speed (px/sec)</label>
+        <input type="number" min="50" max="5000" name="settings.drawSpeed" value="{{settings.drawSpeed}}" {{#if settings.scaleWithMap}}disabled{{/if}} />
+    </div>
+
+    <div class="form-group">
+        <label>Persist (lingerMs)</label>
+        <input type="number" name="settings.lingerMs" value="{{settings.lingerMs}}" />
+        <p class="hint">Use -1 to persist until cleared. Use 0 to remove immediately. Use 5000 to linger for 5s.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Resample Step (px)</label>
+        <input type="number" min="1" max="100" name="settings.sampleStepPx" value="{{settings.sampleStepPx}}" {{#if settings.scaleWithMap}}disabled{{/if}} />
+    </div>
+
+    <hr/>
+
+    <div class="form-group">
+        <label>Intro Pan Duration (ms)</label>
+        <input type="number" min="0" step="100" name="settings.introMs" value="{{settings.introMs}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Pause Before Draw (ms)</label>
+        <input type="number" min="0" step="100" name="settings.pauseMs" value="{{settings.pauseMs}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Camera Zoom Factor</label>
+        <input type="number" min="0.05" max="2" step="0.05" name="settings.cameraZoomFactor" value="{{settings.cameraZoomFactor}}" />
+        <p class="hint">Smaller values zoom out more during cinematic movement.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Camera Smoothness</label>
+        <input type="number" min="0.01" max="1" step="0.01" name="settings.cameraSmooth" value="{{settings.cameraSmooth}}" />
+        <p class="hint">Lower values are smoother but lag behind more.</p>
+    </div>
+
+    <hr/>
+
+    <div class="form-group">
+        <label>Smoothing Algorithm</label>
+        <select name="settings.smoothingMode">
+            <option value="catmull" {{#if (eq settings.smoothingMode "catmull")}}selected{{/if}}>
+            Catmull–Rom (passes through points)
+            </option>
+            <option value="chaikin" {{#if (eq settings.smoothingMode "chaikin")}}selected{{/if}}>
+            Chaikin (rounded corners)
+            </option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>Catmull Samples / Segment</label>
+        <input type="number" min="2" max="64" name="settings.catmullSamplesPerSegment" value="{{settings.catmullSamplesPerSegment}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Catmull Alpha</label>
+        <input type="number" step="0.1" min="0" max="1" name="settings.catmullAlpha" value="{{settings.catmullAlpha}}" />
+        <p class="hint">0.5 is recommended (centripetal).</p>
+    </div>
+
+    <footer class="sheet-footer flexrow">
+        <button type="button" data-action="apply">Apply</button>
+        <button type="button" data-action="save">
+        <i class="fas fa-save"></i> Save
+        </button>
+        <button type="button" data-action="cancel">Cancel</button>
+    </footer>
+</form>

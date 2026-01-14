@@ -1,0 +1,300 @@
+<style>
+    .indy-route-settings .window-content {
+        overflow: auto;
+        padding: 12px 16px;
+    }
+    .indy-route-settings .tabs {
+        display: flex !important;
+        flex-wrap: nowrap;
+        gap: 6px;
+        margin-bottom: 10px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 4px;
+        max-width: 100%;
+        pointer-events: auto;
+    }
+    .indy-route-settings .tab {
+        flex: 0 0 auto;
+        border: 1px solid var(--color-border-light-2);
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-size: 0.8em;
+        text-align: center;
+        background: var(--color-bg-btn);
+        white-space: nowrap;
+        display: inline-flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+    .indy-route-settings .tabs::-webkit-scrollbar {
+        height: 6px;
+    }
+    .indy-route-settings .tab.active {
+        background: var(--color-bg-highlight);
+        border-color: var(--color-border-highlight);
+    }
+    .indy-route-settings .tab-panel {
+        display: none;
+    }
+    .indy-route-settings .tab-panel.active {
+        display: block;
+    }
+    .indy-route-settings form {
+        display: grid;
+        gap: 10px;
+    }
+    .indy-route-settings .form-group {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 4px 12px;
+        margin-bottom: 6px;
+    }
+    .indy-route-settings .form-group label {
+        grid-column: 1 / 2;
+    }
+    .indy-route-settings .form-group input[type="number"],
+    .indy-route-settings .form-group input[type="color"],
+    .indy-route-settings .form-group input[type="checkbox"] {
+        grid-column: 2 / 3;
+        justify-self: end;
+    }
+    .indy-route-settings .form-group input[type="number"] {
+        width: 6.5rem;
+    }
+    .indy-route-settings .form-group input[type="color"] {
+        width: 3rem;
+        height: 1.8rem;
+        padding: 0;
+    }
+    .indy-route-settings .form-group .hint {
+        grid-column: 1 / 2;
+        color: var(--color-text-light-7);
+        font-size: 0.75em;
+        margin: -8px 0 0;
+        padding-left: 0;
+        font-style: italic;
+    }
+</style>
+
+<form onsubmit="return false;">
+    <div class="tabs" data-debug-tabs="{{tabs.length}}">
+        <button type="button" class="tab {{#if (eq activeTab "general")}}active{{/if}}" data-tab="general">General</button>
+        <button type="button" class="tab {{#if (eq activeTab "line")}}active{{/if}}" data-tab="line">Line</button>
+        <button type="button" class="tab {{#if (eq activeTab "dot")}}active{{/if}}" data-tab="dot">Dot</button>
+        <button type="button" class="tab {{#if (eq activeTab "animation")}}active{{/if}}" data-tab="animation">Animation</button>
+        <button type="button" class="tab {{#if (eq activeTab "camera")}}active{{/if}}" data-tab="camera">Camera</button>
+        <button type="button" class="tab {{#if (eq activeTab "smoothing")}}active{{/if}}" data-tab="smoothing">Smoothing</button>
+    </div>
+
+    <section class="tab-panel {{#if (eq activeTab "general")}}active{{/if}}" data-tab-panel="general">
+    <div class="form-group">
+        <label>Scale Line/Dot/Speed by Map Size</label>
+        <input type="checkbox" name="settings.scaleWithMap" {{checked settings.scaleWithMap}} />
+        <p class="hint">When enabled, 100 map pixels = 1 width unit.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Scale Multiplier</label>
+        <input type="number" step="0.1" min="0.1" max="5" name="settings.scaleMultiplier" value="{{settings.scaleMultiplier}}" />
+        <p class="hint">Multiplies map-based scaling.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Cinematic Movement</label>
+        <input type="checkbox" name="settings.cinematicMovement" {{checked settings.cinematicMovement}} />
+        <p class="hint">Pan and zoom the view while the route animates.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Playback Sound</label>
+        <input type="text" name="settings.routeSound" value="{{settings.routeSound}}" placeholder="Sound path or UUID" data-drop="route-sound" />
+        <p class="hint">Drop a sound or paste its path/UUID to play during route playback.</p>
+    </div>
+
+    {{#if route}}
+    <div class="form-group">
+        <label>Capture Map Scale</label>
+        <button type="button" data-action="capture-scale">Use Current View Size</button>
+        <p class="hint">Stores the current view size for this route when scaling by map size.</p>
+    </div>
+    {{/if}}
+
+    <div class="form-group">
+        <label>Render Above Tokens</label>
+        <input type="checkbox" name="settings.renderAboveTokens" {{checked settings.renderAboveTokens}} />
+        <p class="hint">Draws the line, dot, and end marker above tokens.</p>
+    </div>
+    </section>
+
+    <section class="tab-panel {{#if (eq activeTab "line")}}active{{/if}}" data-tab-panel="line">
+    <div class="form-group">
+        <label>Line Color</label>
+        <input type="color" name="settings.lineColor" value="{{settings.lineColor}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Line Alpha</label>
+        <input type="number" step="0.05" min="0" max="1" name="settings.lineAlpha" value="{{settings.lineAlpha}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Line Width</label>
+        <input type="number" min="1" max="30" name="settings.lineWidth" value="{{settings.lineWidth}}" />
+        {{#if settings.scaleWithMap}}
+        <p class="hint">Value is ignored while scaling by map size is enabled.</p>
+        {{/if}}
+    </div>
+
+    <div class="form-group">
+        <label>Dash Length</label>
+        <input type="number" min="1" max="200" name="settings.dashLength" value="{{settings.dashLength}}" />
+        <p class="hint">Clear or set 0 to use automatic dash sizing.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Gap Length</label>
+        <input type="number" min="1" max="200" name="settings.gapLength" value="{{settings.gapLength}}" />
+        <p class="hint">Clear or set 0 to use automatic gap sizing.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Show End X</label>
+        <input type="checkbox" name="settings.showEndX" {{checked settings.showEndX}} />
+    </div>
+    </section>
+
+    <section class="tab-panel {{#if (eq activeTab "dot")}}active{{/if}}" data-tab-panel="dot">
+    <div class="form-group">
+        <label>Show Dot</label>
+        <input type="checkbox" name="settings.showDot" {{checked settings.showDot}} />
+    </div>
+
+    <div class="form-group">
+        <label>Dot Color</label>
+        <input type="color" name="settings.dotColor" value="{{settings.dotColor}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Dot Radius</label>
+        <input type="number" min="1" max="30" name="settings.dotRadius" value="{{settings.dotRadius}}" />
+        {{#if settings.scaleWithMap}}
+        <p class="hint">Value is ignored while scaling by map size is enabled.</p>
+        {{/if}}
+    </div>
+
+    <div class="form-group">
+        <label>Dot Token UUID</label>
+        <input type="text" name="settings.dotTokenUuid" value="{{settings.dotTokenUuid}}" placeholder="Actor/Token UUID" data-drop="dot-token-uuid" />
+        <p class="hint">Drop an Actor/Token or paste a UUID to use a token sprite instead of the dot.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Rotate Token With Path</label>
+        <input type="checkbox" name="settings.dotTokenRotate" {{checked settings.dotTokenRotate}} />
+        <p class="hint">Rotates the token sprite to face movement direction.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Actor Scale Multiplier</label>
+        <input type="number" min="0.1" max="5" step="0.1" name="settings.dotTokenScale" value="{{settings.dotTokenScale}}" />
+        <p class="hint">Scales the token sprite relative to the dot size.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Actor Rotation Offset (deg)</label>
+        <input type="number" min="-180" max="180" step="1" name="settings.dotTokenRotateOffset" value="{{settings.dotTokenRotateOffset}}" />
+        <p class="hint">Adds a fixed rotation offset to the sprite.</p>
+    </div>
+    </section>
+
+    <section class="tab-panel {{#if (eq activeTab "animation")}}active{{/if}}" data-tab-panel="animation">
+    <div class="form-group">
+        <label>Draw Speed (px/sec)</label>
+        <input type="number" min="50" max="5000" name="settings.drawSpeed" value="{{settings.drawSpeed}}" />
+        {{#if settings.scaleWithMap}}
+        <p class="hint">Value is ignored while scaling by map size is enabled.</p>
+        {{/if}}
+    </div>
+
+    <div class="form-group">
+        <label>Persist (lingerMs)</label>
+        <input type="number" name="settings.lingerMs" value="{{settings.lingerMs}}" />
+        <p class="hint">Use -1 to persist until cleared. Use 0 to remove immediately. Use 5000 to linger for 5s.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Resample Step (px)</label>
+        <input type="number" min="1" max="100" name="settings.sampleStepPx" value="{{settings.sampleStepPx}}" />
+        {{#if settings.scaleWithMap}}
+        <p class="hint">Value is ignored while scaling by map size is enabled.</p>
+        {{/if}}
+    </div>
+    </section>
+
+    <section class="tab-panel {{#if (eq activeTab "camera")}}active{{/if}}" data-tab-panel="camera">
+    <div class="form-group">
+        <label>Intro Pan Duration (ms)</label>
+        <input type="number" min="0" step="100" name="settings.introMs" value="{{settings.introMs}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Pause Before Draw (ms)</label>
+        <input type="number" min="0" step="100" name="settings.pauseMs" value="{{settings.pauseMs}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Camera Zoom Factor</label>
+        <input type="number" min="0.05" max="2" step="0.05" name="settings.cameraZoomFactor" value="{{settings.cameraZoomFactor}}" />
+        <p class="hint">Smaller values zoom out more during cinematic movement.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Camera Smoothness</label>
+        <input type="number" min="0.01" max="1" step="0.01" name="settings.cameraSmooth" value="{{settings.cameraSmooth}}" />
+        <p class="hint">Lower values are smoother but lag behind more.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Token Update Rate (ms)</label>
+        <input type="number" min="25" max="1000" step="25" name="settings.tokenUpdateMs" value="{{settings.tokenUpdateMs}}" />
+        <p class="hint">Lower = smoother token sync for others, higher = fewer updates.</p>
+    </div>
+    </section>
+
+    <section class="tab-panel {{#if (eq activeTab "smoothing")}}active{{/if}}" data-tab-panel="smoothing">
+    <div class="form-group">
+        <label>Smoothing Algorithm</label>
+    <select name="settings.smoothingMode">
+        <option value="none" {{#if (eq settings.smoothingMode "none")}}selected{{/if}}>
+        None (use raw points)
+        </option>
+        <option value="catmull" {{#if (eq settings.smoothingMode "catmull")}}selected{{/if}}>
+        Catmull–Rom (passes through points)
+        </option>
+        <option value="chaikin" {{#if (eq settings.smoothingMode "chaikin")}}selected{{/if}}>
+        Chaikin (rounded corners)
+        </option>
+    </select>
+    </div>
+
+    <div class="form-group">
+        <label>Catmull Samples / Segment</label>
+        <input type="number" min="2" max="64" name="settings.catmullSamplesPerSegment" value="{{settings.catmullSamplesPerSegment}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Catmull Alpha</label>
+        <input type="number" step="0.1" min="0" max="1" name="settings.catmullAlpha" value="{{settings.catmullAlpha}}" />
+        <p class="hint">0.5 is recommended (centripetal).</p>
+    </div>
+    </section>
+
+    <footer class="sheet-footer flexrow">
+        <button type="button" data-action="save">
+        <i class="fas fa-save"></i> Save
+        </button>
+    </footer>
+</form>

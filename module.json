@@ -1,0 +1,13 @@
+{
+  "id": "indy-route",
+  "title": "Indy Route",
+  "description": "Adds route-drawing tool and shared animation with configurable settings.",
+  "version": "#{VERSION}#",
+  "authors": [{ "name": "PinguTwo" }],
+  "compatibility": { "minimum": "13", "verified": "13" },
+  "socket": true,
+  "url": "#{URL}#",
+  "manifest": "#{MANIFEST}#",
+  "download": "#{DOWNLOAD}#",
+  "esmodules": ["scripts/indy-route.js"]
+}
