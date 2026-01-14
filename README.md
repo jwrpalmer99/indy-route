@@ -2,8 +2,8 @@
 
 Draw and animate Indiana Jones-style travel routes on the canvas. Routes can be saved per scene, replayed, edited, exported, and shared (synchronized) to players. The module is designed for quick GM use during play: sketch a route, polish the style, and broadcast a cinematic path for everyone to watch.
 
-![Route Manager](images/route_manager.png)
 
+https://github.com/user-attachments/assets/46a06468-cab5-407e-a3f3-974b3295e83b
 
 ## Features
 - Draw routes with smoothing, resampling, and animated playback.
@@ -21,6 +21,10 @@ Use module settings to configure the initial settings of newly drawn routes
 A Route Manager button appears in the Drawing controls (GM only), along with a Clear Routes button.
 
 Routes are stored per scene using scene flags.
+
+<img width="96" height="210" alt="toolbar_small" src="https://github.com/user-attachments/assets/c821e05f-7e09-45b5-ba7c-7f9cfa47d3b4" />
+
+![Route Manager](images/route_manager.png)
 
 ## Quick Start
 1. Open **Route Manager** from the Drawing tools.
