@@ -1,4 +1,9 @@
-# Indy Route (Foundry VTT v13)
+![](https://img.shields.io/badge/Foundry-v13-informational) 
+![GitHub Latest Version](https://img.shields.io/github/v/release/jwrpalmer99/indy-route?sort=semver)
+![GitHub All Releases](https://img.shields.io/github/downloads/jwrpalmer99/indy-route/module.zip)
+
+
+# Indy Route
 
 Draw and animate Indiana Jones-style travel routes on the canvas. Routes can be saved per scene, replayed, edited, exported, and shared (synchronized) to players. The module is designed for quick GM use during play: sketch a route, polish the style, and broadcast a cinematic path for everyone to watch.
 
