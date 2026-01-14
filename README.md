@@ -41,6 +41,7 @@ Routes are stored per scene using scene flags.
 6. Admire the route!
 7. Click **Clear Routes** in the Drawing tools - this will clear all routes from the scene for all players.
 
+
 <img height="348" alt="route_manager" src="https://github.com/user-attachments/assets/a33ccbaf-2e75-4273-b3d5-1abf52329d5d" />
 
 ## Route Manager
