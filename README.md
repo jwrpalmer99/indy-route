@@ -1,9 +1,17 @@
-# Indy Route (Foundry VTT v13)
+![](https://img.shields.io/badge/Foundry-v13-informational) 
+![GitHub Latest Version](https://img.shields.io/github/v/release/jwrpalmer99/indy-route?sort=semver)
+![GitHub All Releases](https://img.shields.io/github/downloads/jwrpalmer99/indy-route/module.zip)
+
+
+# Indy Route
 
 Draw and animate Indiana Jones-style travel routes on the canvas. Routes can be saved per scene, replayed, edited, exported, and shared (synchronized) to players. The module is designed for quick GM use during play: sketch a route, polish the style, and broadcast a cinematic path for everyone to watch.
 
 
-https://github.com/user-attachments/assets/46a06468-cab5-407e-a3f3-974b3295e83b
+
+https://github.com/user-attachments/assets/e20d94f5-456e-4a79-8bc0-243ff58b41bd
+
+
 
 ## Features
 - Draw routes with smoothing, resampling, and animated playback.
@@ -22,9 +30,7 @@ A Route Manager button appears in the Drawing controls (GM only), along with a C
 
 Routes are stored per scene using scene flags.
 
-<img width="96" height="210" alt="toolbar_small" src="https://github.com/user-attachments/assets/c821e05f-7e09-45b5-ba7c-7f9cfa47d3b4" />
-
-![Route Manager](images/route_manager.png)
+<img height="110" alt="toolbar_small" src="https://github.com/user-attachments/assets/cb8ce4eb-afab-4d6e-b41c-31e2daeb6584" />
 
 ## Quick Start
 1. Open **Route Manager** from the Drawing tools.
@@ -35,6 +41,8 @@ Routes are stored per scene using scene flags.
 6. Admire the route!
 7. Click **Clear Routes** in the Drawing tools - this will clear all routes from the scene for all players.
 
+
+<img height="348" alt="route_manager" src="https://github.com/user-attachments/assets/a33ccbaf-2e75-4273-b3d5-1abf52329d5d" />
 
 ## Route Manager
 - **Play**: Broadcasts the animation to all users.
