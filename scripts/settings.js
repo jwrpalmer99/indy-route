@@ -20,6 +20,8 @@ export const DEFAULTS = {
   dotTokenScale: 1,
   dotTokenRotateOffset: 0,
   routeSound: "",
+  travelMode: "none",
+  travelFareTier: "standard",
 
   drawSpeed: 400,
   lingerMs: -1,          // -1 = persist until cleared
@@ -36,6 +38,26 @@ export const DEFAULTS = {
   catmullSamplesPerSegment: 16,
   catmullAlpha: 0.5
 };
+
+export const DEFAULT_TRAVEL_MODES = [
+  { id: "walk-fast", label: "Walking (Fast)", speedMph: 4, perDayMiles: 30 },
+  { id: "walk-normal", label: "Walking (Normal)", speedMph: 3, perDayMiles: 24 },
+  { id: "walk-slow", label: "Walking (Slow)", speedMph: 2, perDayMiles: 18 },
+  { id: "horseback", label: "Horseback", speedMph: 6, perDayMiles: 50 },
+  { id: "coach", label: "Coach", speedMph: 4, perDayMiles: 35, costPerHour: { standard: 0.1 }, costPerDay: { standard: 1 } },
+  { id: "orien-coach", label: "Orien Coach", speedMph: 6, perDayMiles: 50, costPerHour: { standard: 1 }, costPerDay: { standard: 8 } },
+  { id: "lightning-rail", label: "Lightning Rail", speedMph: 30, perDayMiles: 720, costPerHour: { first: 15, standard: 6, steerage: 0.6 }, costPerDay: { first: 350, standard: 150, steerage: 15 } },
+  { id: "sailing-ship", label: "Sailing Ship", speedMph: 3, perDayMiles: 75, costPerHour: { standard: 0.3 }, costPerDay: { standard: 7.5 } },
+  { id: "galleon", label: "Galleon", speedMph: 5, perDayMiles: 120, costPerHour: { first: 1.5, standard: 0.5, steerage: 0.1 }, costPerDay: { first: 35, standard: 12, steerage: 2.5 } },
+  { id: "elemental-galleon", label: "Elemental Galleon", speedMph: 10, perDayMiles: 250, costPerHour: { first: 5, standard: 2, steerage: 0.2 }, costPerDay: { first: 120, standard: 50, steerage: 5 } },
+  { id: "elemental-airship", label: "Elemental Airship", speedMph: 20, perDayMiles: 500, costPerHour: { standard: 20 }, costPerDay: { standard: 500 } }
+];
+
+export function getTravelModes() {
+  const modes = game.settings.get(MODULE_ID, "travelModes");
+  if (Array.isArray(modes) && modes.length) return foundry.utils.deepClone(modes);
+  return foundry.utils.deepClone(DEFAULT_TRAVEL_MODES);
+}
 
 export function getViewPixelSizeForScale(scale) {
   const screen = canvas?.app?.renderer?.screen;
@@ -163,6 +185,8 @@ export function normalizeSettings(s) {
     dotTokenScale: num(s.dotTokenScale),
     dotTokenRotateOffset: num(s.dotTokenRotateOffset),
     routeSound: s.routeSound ?? "",
+    travelMode: s.travelMode ?? "none",
+    travelFareTier: s.travelFareTier ?? "standard",
     showEndX: !!s.showEndX,
     renderAboveTokens: !!s.renderAboveTokens,
     scaleWithMap: !!s.scaleWithMap,

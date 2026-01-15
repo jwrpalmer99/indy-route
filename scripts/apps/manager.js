@@ -1,4 +1,4 @@
-import { MODULE_ID, DEFAULTS, normalizeSettings } from "../settings.js";
+import { MODULE_ID, DEFAULTS, normalizeSettings, getTravelModes } from "../settings.js";
 import { CHANNEL } from "../constants.js";
 import { IndyRouteRenderer } from "../renderer.js";
 import { IndyRouteTool } from "../tool.js";
@@ -29,6 +29,112 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
     this.selectedId = null;
   }
 
+  _getTravelModeData(mode) {
+    const modes = getTravelModes();
+    return modes.find((entry) => entry.id === mode) ?? null;
+  }
+
+  _formatTravelTime(hours) {
+    if (!Number.isFinite(hours)) return "";
+    if (hours >= 24) {
+      const days = Math.round((hours / 24) * 10) / 10;
+      return `${days} days`;
+    }
+    const rounded = Math.round(hours * 10) / 10;
+    return `${rounded} h`;
+  }
+
+  _formatTravelDays(days) {
+    if (!Number.isFinite(days)) return "";
+    const totalHours = days * 24;
+    if (totalHours < 24) {
+      const hours = Math.round(totalHours * 10) / 10;
+      return `${hours} h`;
+    }
+    let fullDays = Math.floor(days);
+    let remHours = Math.round((days - fullDays) * 24);
+    if (remHours === 24) {
+      fullDays += 1;
+      remHours = 0;
+    }
+    if (remHours > 0) return `${fullDays} days ${remHours} h`;
+    return `${fullDays} days`;
+  }
+
+  _formatCostCurrency(cost) {
+    if (!Number.isFinite(cost)) return "";
+    const ignore = this._getIgnoredCurrencies();
+    let entries = [];
+    const configured = game.settings.get(MODULE_ID, "currencyConversions");
+    if (Array.isArray(configured) && configured.length) {
+      entries = configured
+        .map((entry) => ({
+          key: (entry?.key ?? "").toString(),
+          label: (entry?.label ?? entry?.key ?? "").toString(),
+          conversion: Number(entry?.conversion)
+        }))
+        .filter((entry) => entry.key && Number.isFinite(entry.conversion) && entry.conversion > 0)
+        .filter((entry) => !ignore.has(entry.key.toLowerCase()));
+    } else {
+      const systemId = game.system?.id ?? "";
+      const sysConfig =
+        CONFIG?.[systemId?.toUpperCase?.()] ??
+        CONFIG?.[systemId] ??
+        null;
+      const currencies = sysConfig?.currencies;
+      if (currencies && typeof currencies === "object") {
+        entries = Object.entries(currencies)
+          .map(([key, data]) => ({
+            key,
+            label: data?.abbreviation ?? data?.label ?? key,
+            conversion: Number(data?.conversion)
+          }))
+          .filter((entry) => Number.isFinite(entry.conversion) && entry.conversion > 0)
+          .filter((entry) => !ignore.has(entry.key.toLowerCase()));
+      }
+    }
+
+    if (!entries.length) {
+      entries = [
+        { key: "gp", label: "gp", conversion: 1 },
+        { key: "sp", label: "sp", conversion: 10 },
+        { key: "cp", label: "cp", conversion: 100 }
+      ].filter((entry) => !ignore.has(entry.key));
+    }
+
+    if (!entries.length) return "";
+
+    // Smaller conversion means higher value (fewer units per gp), so sort ascending.
+    entries.sort((a, b) => a.conversion - b.conversion);
+
+    const smallestConv = Math.max(...entries.map((entry) => entry.conversion));
+    let remainingUnits = Math.round(cost * smallestConv);
+    const parts = [];
+    entries.forEach((entry, index) => {
+      const conv = entry.conversion;
+      if (!Number.isFinite(conv) || conv <= 0) return;
+      const isLast = index === entries.length - 1;
+      const unitFactor = smallestConv / conv;
+      const raw = remainingUnits / unitFactor;
+      const qty = isLast ? Math.round(raw) : Math.floor(raw);
+      if (qty > 0 || (isLast && parts.length === 0)) {
+        parts.push(`${qty} ${entry.label}`);
+      }
+      remainingUnits -= Math.round(qty * unitFactor);
+    });
+    return parts.join(" ");
+  }
+
+  _getIgnoredCurrencies() {
+    const raw = (game.settings.get(MODULE_ID, "ignoreCurrencies") ?? "").toString();
+    return new Set(
+      raw
+        .split(",")
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean)
+    );
+  }
+
   _getRouteLengthLabel(route) {
     if (!route?.points || route.points.length < 2) return "";
     const gridSize = canvas?.grid?.size ?? canvas?.scene?.grid?.size ?? null;
@@ -43,9 +149,45 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       totalPx += Math.hypot(b.x - a.x, b.y - a.y);
     }
     const totalUnits = (totalPx / gridSize) * gridDistance;
-    const units = canvas?.scene?.grid?.units ?? canvas?.scene?.gridUnits ?? "";
-    const rounded = Math.round(totalUnits * 10) / 10;
-    return units ? `${rounded} ${units}` : `${rounded}`;
+    const useMiles = route?.settings?.travelMode && route.settings.travelMode !== "none";
+    const units = useMiles ? "mi" : (canvas?.scene?.grid?.units ?? canvas?.scene?.gridUnits ?? "units");
+    const rounded = Math.round(totalUnits * 100) / 100;
+    const distanceLabel = `Length: ${rounded} ${units}`;
+    if (useMiles) {
+      const travel = this._getTravelModeData(route.settings.travelMode);
+      const perDay = travel?.perDayMiles;
+      const hours = travel?.speedMph ? (totalUnits / travel.speedMph) : null;
+      const days = perDay ? (totalUnits / perDay) : null;
+      let dayCount = Number.isFinite(days) ? Math.floor(days) : null;
+      let partialHours = null;
+      if (Number.isFinite(days) && perDay && travel?.speedMph) {
+        const remainingMiles = totalUnits - dayCount * perDay;
+        partialHours = Math.max(0, remainingMiles) / travel.speedMph;
+      }
+      const useHourlyOnly = !Number.isFinite(days);
+      const timeLabel = useHourlyOnly
+        ? this._formatTravelTime(hours)
+        : (dayCount > 0
+          ? `${dayCount} days${partialHours ? ` ${this._formatTravelTime(partialHours)}` : ""}`
+          : this._formatTravelTime(partialHours ?? hours));
+      const tier = route.settings.travelFareTier ?? "standard";
+      const dayRate = travel?.costPerDay?.[tier] ?? travel?.costPerDay?.standard ?? null;
+      const hourRate = travel?.costPerHour?.[tier] ?? travel?.costPerHour?.standard ?? null;
+      const cost = useHourlyOnly
+        ? (Number.isFinite(hourRate) && Number.isFinite(hours) ? hourRate * hours : null)
+        : ((Number.isFinite(dayRate) && Number.isFinite(dayCount) ? dayRate * dayCount : 0) +
+          (Number.isFinite(hourRate) && Number.isFinite(partialHours) ? hourRate * partialHours : 0));
+      const costLabel = this._formatCostCurrency(cost);
+      const parts = [
+        distanceLabel,
+        timeLabel ? `Time: ${timeLabel}` : null,
+        costLabel ? `Cost: ${costLabel}` : null
+      ].filter(Boolean);
+      const firstLine = parts.slice(0, 2).join(" | ");
+      const secondLine = parts.length > 2 ? parts.slice(2).join(" | ") : "";
+      return secondLine ? `${firstLine}<br>${secondLine}` : firstLine;
+    }
+    return distanceLabel;
   }
 
   async _prepareContext() {

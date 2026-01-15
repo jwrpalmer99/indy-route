@@ -1,4 +1,4 @@
-import { MODULE_ID, DEFAULTS, normalizeSettings, getMapPixelSize } from "../settings.js";
+import { MODULE_ID, DEFAULTS, normalizeSettings, getMapPixelSize, getTravelModes } from "../settings.js";
 import { buildRouteFromPoints } from "../routes.js";
 import { IndyRouteRenderer } from "../renderer.js";
 
@@ -28,7 +28,8 @@ export class IndyRouteSettingsBase extends foundry.applications.api.HandlebarsAp
       settings: merged,
       route: this.route ?? null,
       activeTab: this.activeTab,
-      tabs: ["general", "line", "dot", "animation", "camera", "smoothing"]
+      tabs: ["general", "line", "dot", "animation", "camera", "smoothing"],
+      travelModes: getTravelModes()
     };
   }
 
@@ -58,6 +59,7 @@ export class IndyRouteSettingsBase extends foundry.applications.api.HandlebarsAp
       if (saveTarget) {
         event.preventDefault();
         this._handleSave();
+        return;
       }
     };
     content?.addEventListener("click", this._tabClickHandler, true);

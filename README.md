@@ -21,6 +21,8 @@ https://github.com/user-attachments/assets/e20d94f5-456e-4a79-8bc0-243ff58b41bd
 - Optional end marker, dot, and token-follow support.
 - Control over many display properties that you can change from defaults.
 - Play a sound during playback (fade out at finish).
+- Travel mode tooltips with time and cost estimates.
+- Configurable travel modes and currency conversions.
 - Export/import routes as JSON for backup or reuse.
 
 ## Install
@@ -63,6 +65,8 @@ Routes are stored on the scene as a flag: `scene.getFlag("indy-route", "routes")
 - **Scale Multiplier**: multiplies the above scaling (default 1).
 - **Cinematic Movement**: pan/zoom the camera during playback - players will be panned/zoomed to the start
 - **Playback Sound**: sound path or UUID to play during animation.
+- **Travel Mode**: enables distance/time/cost estimates in tooltips (distance treated as miles).
+- **Fare Tier**: choose first/standard/steerage for tiered fares.
 - **Render Above Tokens**: draw line/dot/marker above tokens.
 
 ### Line
@@ -118,6 +122,15 @@ Import replaces the current scene routes.
 - Token-follow uses a token UUID and moves the actual token during playback - you can use this if you want to use Fog of War etc.
 - Token will be snapped to the starting position before animation playback begins.
 - Use an Actor if you don't want to add a token to the map that is actually moved but still want the image.
+- Travel time/cost uses full days plus a partial-day remainder (priced by hour).
+- The module will attempt to use system/world currencies if they provide conversions; otherwise it falls back to gp/sp/cp.
+- By default, the travel mode list includes D&D 5e walking speeds and common modes of transport from Eberron (can be customized).
+
+## Module Settings
+- **Configure Route Tools**: defaults for new routes.
+- **Configure Travel Modes**: add/edit travel speeds and fares used in tooltips.
+- **Configure Currency Conversions**: override currency breakdown conversions used for costs.
+- **Ignore Currencies**: comma-separated currency keys to omit from the breakdown (default `ep,pp`).
 
 ## Troubleshooting
 - If scale-based values seem off, use **Capture Map Scale** in the route Style dialog.

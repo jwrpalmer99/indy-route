@@ -103,15 +103,24 @@
     </div>
 
     <div class="form-group">
-        <label>Cinematic Movement</label>
-        <input type="checkbox" name="settings.cinematicMovement" {{checked settings.cinematicMovement}} />
-        <p class="hint">Pan and zoom the view while the route animates.</p>
+        <label>Travel Mode</label>
+        <select name="settings.travelMode">
+            <option value="none" {{#if (eq settings.travelMode "none")}}selected{{/if}}>None</option>
+            {{#each travelModes as |mode|}}
+            <option value="{{mode.id}}" {{#if (eq ../settings.travelMode mode.id)}}selected{{/if}}>{{mode.label}}</option>
+            {{/each}}
+        </select>
+        <p class="hint">When set, route distance is treated as miles for time/cost.</p>
     </div>
 
     <div class="form-group">
-        <label>Playback Sound</label>
-        <input type="text" name="settings.routeSound" value="{{settings.routeSound}}" placeholder="Sound path or UUID" data-drop="route-sound" />
-        <p class="hint">Drop a sound or paste its path/UUID to play during route playback.</p>
+        <label>Fare Tier</label>
+        <select name="settings.travelFareTier">
+            <option value="first" {{#if (eq settings.travelFareTier "first")}}selected{{/if}}>First</option>
+            <option value="standard" {{#if (eq settings.travelFareTier "standard")}}selected{{/if}}>Standard</option>
+            <option value="steerage" {{#if (eq settings.travelFareTier "steerage")}}selected{{/if}}>Steerage</option>
+        </select>
+        <p class="hint">Used for travel modes with tiered fares.</p>
     </div>
 
     {{#if route}}
@@ -212,6 +221,12 @@
 
     <section class="tab-panel {{#if (eq activeTab "animation")}}active{{/if}}" data-tab-panel="animation">
     <div class="form-group">
+        <label>Playback Sound</label>
+        <input type="text" name="settings.routeSound" value="{{settings.routeSound}}" placeholder="Sound path or UUID" data-drop="route-sound" />
+        <p class="hint">Drop a sound or paste its path/UUID to play during route playback.</p>
+    </div>
+
+    <div class="form-group">
         <label>Draw Speed (px/sec)</label>
         <input type="number" min="50" max="5000" name="settings.drawSpeed" value="{{settings.drawSpeed}}" />
         {{#if settings.scaleWithMap}}
@@ -235,6 +250,12 @@
     </section>
 
     <section class="tab-panel {{#if (eq activeTab "camera")}}active{{/if}}" data-tab-panel="camera">
+    <div class="form-group">
+        <label>Cinematic Movement</label>
+        <input type="checkbox" name="settings.cinematicMovement" {{checked settings.cinematicMovement}} />
+        <p class="hint">Pan and zoom the view while the route animates.</p>
+    </div>
+
     <div class="form-group">
         <label>Intro Pan Duration (ms)</label>
         <input type="number" min="0" step="100" name="settings.introMs" value="{{settings.introMs}}" />
