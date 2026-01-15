@@ -58,7 +58,7 @@
         {{#if routes.length}}
             {{#each routes as |route|}}
                 <div class="route-item {{#if (eq route.id ../selectedId)}}selected{{/if}}" data-action="select-route" data-route-id="{{route.id}}">
-                    <input class="route-name" type="text" data-action="rename-route" data-route-id="{{route.id}}" value="{{route.name}}" />
+                    <input class="route-name" type="text" data-action="rename-route" data-route-id="{{route.id}}" value="{{route.name}}"{{#if route.lengthLabel}} data-tooltip="Length: {{route.lengthLabel}}" data-tooltip-direction="UP"{{/if}} />
                     <div class="route-actions">
                         <button type="button" data-action="play-route" data-route-id="{{route.id}}" data-tooltip="Play">
                             <i class="fa-solid fa-play"></i>

@@ -29,8 +29,30 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
     this.selectedId = null;
   }
 
+  _getRouteLengthLabel(route) {
+    if (!route?.points || route.points.length < 2) return "";
+    const gridSize = canvas?.grid?.size ?? canvas?.scene?.grid?.size ?? null;
+    const gridDistance = canvas?.scene?.grid?.distance ?? canvas?.scene?.gridDistance ?? null;
+    if (!gridSize || !gridDistance) return "";
+    const built = buildRouteFromPoints(route.points, route.settings);
+    const path = built?.path ?? route.points;
+    let totalPx = 0;
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i];
+      const b = path[i + 1];
+      totalPx += Math.hypot(b.x - a.x, b.y - a.y);
+    }
+    const totalUnits = (totalPx / gridSize) * gridDistance;
+    const units = canvas?.scene?.grid?.units ?? canvas?.scene?.gridUnits ?? "";
+    const rounded = Math.round(totalUnits * 10) / 10;
+    return units ? `${rounded} ${units}` : `${rounded}`;
+  }
+
   async _prepareContext() {
-    const routes = getSceneRoutes();
+    const routes = getSceneRoutes().map((route) => ({
+      ...route,
+      lengthLabel: this._getRouteLengthLabel(route)
+    }));
     return {
       routes,
       selectedId: this.selectedId
