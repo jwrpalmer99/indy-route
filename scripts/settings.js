@@ -3,17 +3,25 @@ export const MODULE_ID = "indy-route";
 export const DEFAULTS = {
   lineColor: "#d61f1f",
   lineAlpha: 0.95,
-  lineWidth: 6,
-  dashLength: 20,
-  gapLength: 14,
+  lineWidth: 16,
+  dashLength: 0,
+  gapLength: 0,
+  showLabel: true,
+  labelColor: "#f21c0d",
+  labelFontFamily: "Modesto Condensed, serif",
+  labelFontSize: 24,
+  labelOffset: 16,
+  labelFollowPath: true,
+  labelShowArrow: false,
+  labelPosition: 50,
   scaleWithMap: true,
   scaleMultiplier: 1,
-  cinematicMovement: false,
+  cinematicMovement: true,
   showEndX: true,
   renderAboveTokens: false,
 
   dotColor: "#f7f0e6",
-  dotRadius: 6,
+  dotRadius: 18,
   showDot: true,
   dotTokenUuid: "",
   dotTokenRotate: false,
@@ -25,7 +33,7 @@ export const DEFAULTS = {
 
   drawSpeed: 400,
   lingerMs: -1,          // -1 = persist until cleared
-  sampleStepPx: 10,
+  sampleStepPx: 8,
 
   introMs: 1500,
   pauseMs: 1500,
@@ -104,8 +112,9 @@ export function applyMapScaling(settings, sizeOverride) {
     ...settings,
     lineWidth: Math.max(1, n),
     dotRadius: Math.max(1, n * 1.3),
-    drawSpeed: Math.max(1,n * 25),
-    sampleStepPx: Math.max(1, n)
+    drawSpeed: Math.max(1, n * 25),
+    sampleStepPx: Math.max(1, n),
+    labelFontSize: Math.max(8, n * 3.8)
   };
 }
 
@@ -139,20 +148,22 @@ export function getCameraScaleForPath(totalLen, zoomFactor = DEFAULTS.cameraZoom
 
 export function getSettings() {
   const s = applyMapScaling(game.settings.get(MODULE_ID, "routeSettings"));
-  const toNum = (hex) => parseInt(hex.replace("#","0x"));
+  const toNum = (hex, fallback) => parseInt((hex || fallback || "#000000").replace("#","0x"));
   return {
     ...s,
-    lineColorNum: toNum(s.lineColor),
-    dotColorNum: toNum(s.dotColor)
+    lineColorNum: toNum(s.lineColor, DEFAULTS.lineColor),
+    dotColorNum: toNum(s.dotColor, DEFAULTS.dotColor),
+    labelColorNum: toNum(s.labelColor, DEFAULTS.labelColor)
   };
 }
 
 export function applyColorNumbers(settings) {
-  const toNum = (hex) => parseInt(hex.replace("#","0x"));
+  const toNum = (hex, fallback) => parseInt((hex || fallback || "#000000").replace("#","0x"));
   return {
     ...settings,
-    lineColorNum: toNum(settings.lineColor),
-    dotColorNum: toNum(settings.dotColor)
+    lineColorNum: toNum(settings.lineColor, DEFAULTS.lineColor),
+    dotColorNum: toNum(settings.dotColor, DEFAULTS.dotColor),
+    labelColorNum: toNum(settings.labelColor, DEFAULTS.labelColor)
   };
 }
 
@@ -168,6 +179,9 @@ export function normalizeSettings(s) {
     dashLength: Number.isFinite(dash) && dash > 0 ? dash : null,
     gapLength: Number.isFinite(gap) && gap > 0 ? gap : null,
     dotRadius: num(s.dotRadius),
+    labelFontSize: num(s.labelFontSize),
+    labelOffset: num(s.labelOffset),
+    labelPosition: num(s.labelPosition),
     drawSpeed: num(s.drawSpeed),
     lingerMs: num(s.lingerMs),
     sampleStepPx: Number.isFinite(step) ? Math.max(1, step) : step,
@@ -187,6 +201,11 @@ export function normalizeSettings(s) {
     routeSound: s.routeSound ?? "",
     travelMode: s.travelMode ?? "none",
     travelFareTier: s.travelFareTier ?? "standard",
+    showLabel: !!s.showLabel,
+    labelColor: s.labelColor ?? "#f7f0e6",
+    labelFontFamily: (s.labelFontFamily ?? "Modesto Condensed, serif").toString(),
+    labelFollowPath: s.labelFollowPath !== false,
+    labelShowArrow: !!s.labelShowArrow,
     showEndX: !!s.showEndX,
     renderAboveTokens: !!s.renderAboveTokens,
     scaleWithMap: !!s.scaleWithMap,

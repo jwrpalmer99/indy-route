@@ -178,14 +178,16 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
         : ((Number.isFinite(dayRate) && Number.isFinite(dayCount) ? dayRate * dayCount : 0) +
           (Number.isFinite(hourRate) && Number.isFinite(partialHours) ? hourRate * partialHours : 0));
       const costLabel = this._formatCostCurrency(cost);
-      const parts = [
-        distanceLabel,
-        timeLabel ? `Time: ${timeLabel}` : null,
+      const modeLabel = travel?.label ? `Mode: ${travel.label}` : null;
+      const firstLine = [distanceLabel, timeLabel ? `Time: ${timeLabel}` : null]
+        .filter(Boolean)
+        .join(" | ");
+      const lines = [
+        firstLine || null,
+        modeLabel,
         costLabel ? `Cost: ${costLabel}` : null
       ].filter(Boolean);
-      const firstLine = parts.slice(0, 2).join(" | ");
-      const secondLine = parts.length > 2 ? parts.slice(2).join(" | ") : "";
-      return secondLine ? `${firstLine}<br>${secondLine}` : firstLine;
+      return lines.join("<br>");
     }
     return distanceLabel;
   }
@@ -278,6 +280,13 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
         this._clearRoute(clear.dataset.routeId);
         return;
       }
+      const persist = event.target?.closest?.("[data-action='persist-route']");
+      if (persist) {
+        event.preventDefault();
+        event.stopPropagation();
+        this._persistRoute(persist.dataset.routeId);
+        return;
+      }
       const select = event.target?.closest?.("[data-action='select-route']");
       if (select) {
         event.preventDefault();
@@ -331,7 +340,7 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       return;
     }
     const built = buildRouteFromPoints(route.points, route.settings);
-    IndyRouteRenderer.renderStatic(built.path, built.settings, route.id);
+    IndyRouteRenderer.renderStatic(built.path, built.settings, route.id, route.name);
   }
 
   async _selectRoute(routeId) {
@@ -353,7 +362,8 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       settings: built.settings,
       startTime: Date.now(),
       lingerMs: built.settings.lingerMs,
-      routeId
+      routeId,
+      labelText: route.name
     };
     game.socket.emit(CHANNEL, { type: "INDY_ROUTE", payload });
     IndyRouteRenderer.render(payload);
@@ -370,9 +380,28 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       settings: built.settings,
       startTime: Date.now(),
       lingerMs: built.settings.lingerMs,
-      routeId
+      routeId,
+      labelText: route.name
     };
     IndyRouteRenderer.render(payload);
+  }
+
+  async _persistRoute(routeId) {
+    const route = this._getRoute(routeId);
+    if (!route?.points || route.points.length < 2) return;
+    const dialogApi = foundry.applications?.api?.DialogV2 ?? Dialog;
+    const includeEndX = await dialogApi.confirm({
+      title: "Persist Route to Tile",
+      content: "<p>Draw ending cross on the tile?</p>"
+    });
+    const built = buildRouteFromPoints(route.points, route.settings);
+    const created = await IndyRouteRenderer.persistRouteToTile(built.path, built.settings, {
+      includeEndX,
+      labelText: route.name
+    });
+    if (!created) {
+      ui.notifications.warn("Unable to persist route to a tile.");
+    }
   }
 
   _clearRoute(routeId) {

@@ -1,9 +1,12 @@
 import { DEFAULTS, getCameraScaleForPath } from "./settings.js";
+import { IndyRouteLabelRenderer } from "./label-renderer.js";
 
 function panToPosition(x, y, scale) {
   if (canvas?.pan) return canvas.pan({ x, y, scale });
   if (canvas?.animatePan) return canvas.animatePan({ x, y, scale, duration: 0 });
 }
+
+const labelRenderer = new IndyRouteLabelRenderer();
 
 export const IndyRouteRenderer = {
   ensureRoot() {
@@ -278,7 +281,7 @@ export const IndyRouteRenderer = {
       Hooks.once("canvasReady", () => this.render(payload));
       return;
     }
-    const { sceneId, path, settings, startTime, lingerMs, routeId } = payload ?? {};
+    const { sceneId, path, settings, startTime, lingerMs, routeId, labelText } = payload ?? {};
     if (game.scenes.current?.id !== sceneId) return;
     if (!Array.isArray(path) || path.length < 2) return;
 
@@ -390,6 +393,7 @@ export const IndyRouteRenderer = {
       dot.clear();
       const end = path[path.length - 1];
       this.drawEndX(container, end.x, end.y, settings, settings.lineWidth * 2);
+      labelRenderer.drawLabel(container, path, settings, labelText);
 
       // lingerMs: >0 remove after ms; otherwise persist
       if (typeof lingerMs === "number" && lingerMs > 0) {
@@ -505,7 +509,7 @@ export const IndyRouteRenderer = {
     }
   },
 
-  renderStatic(path, settings, routeId) {
+  renderStatic(path, settings, routeId, labelText) {
     if (!canvas?.ready) return;
     if (!Array.isArray(path) || path.length < 2) return;
     this.clearPreview();
@@ -533,5 +537,95 @@ export const IndyRouteRenderer = {
     dot.clear();
     const end = path[path.length - 1];
     this.drawEndX(container, end.x, end.y, settings, settings.lineWidth * 2);
+    labelRenderer.drawLabel(container, path, settings, labelText);
+  },
+
+  async persistRouteToTile(path, settings, { includeEndX = true, labelText = "" } = {}) {
+    if (!canvas?.ready || !canvas?.scene) return null;
+    if (!Array.isArray(path) || path.length < 2) return null;
+    const renderer = canvas.app?.renderer;
+    if (!renderer) return null;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const point of path) {
+      if (!point) continue;
+      minX = Math.min(minX, point.x);
+      minY = Math.min(minY, point.y);
+      maxX = Math.max(maxX, point.x);
+      maxY = Math.max(maxY, point.y);
+    }
+    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) return null;
+
+    const pad = Math.max(10, (settings?.lineWidth ?? 1) * 2 + 4);
+    const width = Math.max(1, Math.ceil(maxX - minX + pad * 2));
+    const height = Math.max(1, Math.ceil(maxY - minY + pad * 2));
+    const offsetX = -minX + pad;
+    const offsetY = -minY + pad;
+    const offsetPath = path.map((p) => ({ x: p.x + offsetX, y: p.y + offsetY }));
+
+    const container = new PIXI.Container();
+    const line = new PIXI.Graphics();
+    line.lineStyle({
+      width: settings.lineWidth,
+      color: settings.lineColorNum,
+      alpha: settings.lineAlpha,
+      cap: PIXI.LINE_CAP.ROUND,
+      join: PIXI.LINE_JOIN.ROUND
+    });
+    container.addChild(line);
+
+    const dashState = { offset: 0 };
+    const dash = this.getDashPattern(settings);
+    for (let i = 1; i < offsetPath.length; i++) {
+      this.drawDashedSegment(line, offsetPath[i - 1], offsetPath[i], dashState, dash.dashLen, dash.gapLen);
+    }
+
+    if (includeEndX) {
+      const end = offsetPath[offsetPath.length - 1];
+      this.drawEndX(container, end.x, end.y, settings, settings.lineWidth * 2);
+    }
+    await labelRenderer.drawLabel(container, offsetPath, settings, labelText);
+
+    const renderTexture = PIXI.RenderTexture.create({ width, height });
+    renderer.render(container, { renderTexture, clear: true });
+    const extractCanvas = renderer.extract.canvas(renderTexture);
+    renderTexture.destroy(true);
+    container.destroy({ children: true });
+
+    if (!extractCanvas) return null;
+    let textureSrc = null;
+    const folder = "indy-route";
+    const fileName = `indy-route-${foundry.utils.randomID()}.png`;
+    try {
+      if (foundry.utils?.ImageHelper?.uploadBase64) {
+        await FilePicker.createDirectory("data", folder).catch(() => {});
+        const dataUrl = extractCanvas.toDataURL("image/png");
+        const upload = await foundry.utils.ImageHelper.uploadBase64(dataUrl, { folder, filename: fileName });
+        textureSrc = upload?.path ?? upload ?? textureSrc;
+      } else if (FilePicker?.upload) {
+        await FilePicker.createDirectory("data", folder).catch(() => {});
+        const blob = await new Promise((resolve) => extractCanvas.toBlob(resolve, "image/png"));
+        if (!blob) throw new Error("Failed to create PNG blob.");
+        const file = new File([blob], fileName, { type: blob.type || "image/png" });
+        const upload = await FilePicker.upload("data", folder, file, {});
+        textureSrc = upload?.path ?? upload ?? textureSrc;
+      }
+    } catch {
+      textureSrc = null;
+    }
+    if (!textureSrc) return null;
+    const tileData = {
+      x: minX - pad,
+      y: minY - pad,
+      width,
+      height,
+      texture: { src: textureSrc },
+      locked: true
+    };
+    const created = await canvas.scene.createEmbeddedDocuments("Tile", [tileData]);
+    return created?.[0] ?? null;
   }
 };

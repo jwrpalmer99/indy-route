@@ -42,6 +42,8 @@ export const IndyRouteTool = {
       settings: getSettings(),
       lastScale: getStageScale(),
       lastMouse: null,
+      lastClickTime: 0,
+      lastClickPos: null,
       handlers: {},
       onComplete: typeof options.onComplete === "function" ? options.onComplete : null,
       autoPlay: options.autoPlay !== false
@@ -53,7 +55,7 @@ export const IndyRouteTool = {
       this.state.settings = applyColorNumbers(scaled);
     }
 
-    ui.notifications.info("Route: Left-click points. Right-click or Enter to finish. Backspace removes last. Esc cancels.");
+    ui.notifications.info("Route: Left-click points. Double-click or Enter to finish. Backspace removes last. Esc cancels.");
 
     const getCanvasPos = () => ({ x: canvas.mousePosition.x, y: canvas.mousePosition.y });
 
@@ -87,7 +89,6 @@ export const IndyRouteTool = {
       const h = this.state.handlers;
       canvas.stage.off("pointerdown", h.pointerdown);
       canvas.stage.off("pointermove", h.pointermove);
-      window.removeEventListener("contextmenu", h.contextmenu, true);
       window.removeEventListener("keydown", h.keydown, true);
     };
 
@@ -139,7 +140,26 @@ export const IndyRouteTool = {
     this.state.handlers.pointerdown = (event) => {
       const btn = event?.data?.button ?? event?.button ?? 0;
       if (btn !== 0) return;
-      this.state.points.push(getCanvasPos());
+      const pos = getCanvasPos();
+      const nowMs = Date.now();
+      const lastTime = this.state.lastClickTime ?? 0;
+      const lastPos = this.state.lastClickPos;
+      const doubleClick = lastPos
+        && (nowMs - lastTime) < 300
+        && Math.hypot(pos.x - lastPos.x, pos.y - lastPos.y) < 5;
+      if (doubleClick) {
+        if (this.state.points.length) {
+          this.state.points[this.state.points.length - 1] = pos;
+        } else {
+          this.state.points.push(pos);
+        }
+        drawPreview();
+        stopListeners();
+        return finishAndBroadcast();
+      }
+      this.state.points.push(pos);
+      this.state.lastClickTime = nowMs;
+      this.state.lastClickPos = pos;
       drawPreview();
     };
 
@@ -148,14 +168,6 @@ export const IndyRouteTool = {
       const pos = getCanvasPos();
       this.state.lastMouse = pos;
       if (this.state.points.length) drawPreview(pos);
-    };
-
-    this.state.handlers.contextmenu = (e) => {
-      if (!this.state?.active) return;
-      e.preventDefault(); e.stopPropagation();
-      stopListeners();
-      if (this.state.lastMouse) this.state.points.push({ ...this.state.lastMouse });
-      finishAndBroadcast();
     };
 
     this.state.handlers.keydown = (e) => {
@@ -170,7 +182,6 @@ export const IndyRouteTool = {
     // attach
     canvas.stage.on("pointerdown", this.state.handlers.pointerdown);
     canvas.stage.on("pointermove", this.state.handlers.pointermove);
-    window.addEventListener("contextmenu", this.state.handlers.contextmenu, true);
     window.addEventListener("keydown", this.state.handlers.keydown, true);
   },
 

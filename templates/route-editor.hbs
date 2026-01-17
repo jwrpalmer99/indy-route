@@ -31,6 +31,43 @@
         <input type="number" min="1" max="30" name="settings.lineWidth" value="{{settings.lineWidth}}" {{#if settings.scaleWithMap}}disabled{{/if}} />
     </div>
 
+    <div class="form-group">
+        <label>Show Route Label</label>
+        <input type="checkbox" name="settings.showLabel" {{checked settings.showLabel}} />
+        <p class="hint">Uses the route name as the label.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Label Color</label>
+        <input type="color" name="settings.labelColor" value="{{settings.labelColor}}" />
+    </div>
+
+    <div class="form-group">
+        <label>Label Font</label>
+        <select name="settings.labelFontFamily">
+            {{#each labelFonts as |font|}}
+            <option value="{{font.value}}" {{#if (eq ../settings.labelFontFamily font.value)}}selected{{/if}}>{{font.label}}</option>
+            {{/each}}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>Label Font Size</label>
+        <input type="number" min="8" max="96" name="settings.labelFontSize" value="{{settings.labelFontSize}}" {{#if settings.scaleWithMap}}disabled{{/if}} />
+    </div>
+
+    <div class="form-group">
+        <label>Label Offset (px)</label>
+        <input type="number" min="-200" max="200" step="1" name="settings.labelOffset" value="{{settings.labelOffset}}" {{#if settings.scaleWithMap}}disabled{{/if}} />
+        <p class="hint">Use negative values to flip the label to the other side of the line.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Label Follows Path</label>
+        <input type="checkbox" name="settings.labelFollowPath" {{checked settings.labelFollowPath}} />
+        <p class="hint">When disabled, labels use a single rotation at the midpoint.</p>
+    </div>
+
     <hr/>
 
     <div class="form-group">

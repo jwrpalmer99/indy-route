@@ -12,7 +12,7 @@ export class IndyRouteSettingsBase extends foundry.applications.api.HandlebarsAp
   static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
     id: "indy-route-settings",
     window: { title: "Indy Route Tools: Settings", resizable: true },
-    position: { width: 420, height: 320 },
+    position: { width: 440, height: 494 },
     classes: ["indy-route", "indy-route-settings"]
   }, { inplace: false });
 
@@ -28,9 +28,58 @@ export class IndyRouteSettingsBase extends foundry.applications.api.HandlebarsAp
       settings: merged,
       route: this.route ?? null,
       activeTab: this.activeTab,
-      tabs: ["general", "line", "dot", "animation", "camera", "smoothing"],
-      travelModes: getTravelModes()
+      tabs: ["general", "line", "dot", "label", "animation", "camera", "smoothing"],
+      travelModes: getTravelModes(),
+      labelFonts: this._getLabelFonts()
     };
+  }
+
+  _getLabelFonts() {
+    const options = new Map();
+    const add = (value, label) => {
+      if (!value) return;
+      const key = value.toLowerCase();
+      if (options.has(key)) return;
+      options.set(key, { value, label: label || value });
+    };
+
+    const defaults = [
+      { value: "Modesto Condensed, serif", label: "Modesto Condensed" },
+      { value: "Signika, sans-serif", label: "Signika" },
+      { value: "Roboto, sans-serif", label: "Roboto" },
+      { value: "Palatino, serif", label: "Palatino" },
+      { value: "Garamond, serif", label: "Garamond" },
+      { value: "Georgia, serif", label: "Georgia" },
+      { value: "Times New Roman, serif", label: "Times New Roman" },
+      { value: "Trebuchet MS, sans-serif", label: "Trebuchet MS" },
+      { value: "Tahoma, sans-serif", label: "Tahoma" },
+      { value: "Verdana, sans-serif", label: "Verdana" },
+      { value: "Courier New, monospace", label: "Courier New" },
+      { value: "Impact, sans-serif", label: "Impact" }
+    ];
+    defaults.forEach((entry) => add(entry.value, entry.label));
+
+    const defs = CONFIG?.fontDefinitions;
+    if (defs && typeof defs === "object") {
+      Object.entries(defs).forEach(([key, def]) => {
+        const family = def?.family ?? def?.fontFamily ?? key;
+        if (family) add(family.toString());
+        const fonts = Array.isArray(def?.fonts) ? def.fonts : [];
+        fonts.forEach((font) => {
+          const f = font?.family ?? font?.fontFamily ?? font?.name ?? "";
+          if (f) add(f.toString());
+        });
+      });
+    }
+
+    if (document?.fonts && typeof document.fonts[Symbol.iterator] === "function") {
+      for (const face of document.fonts) {
+        const family = face?.family;
+        if (family) add(family.toString());
+      }
+    }
+
+    return Array.from(options.values());
   }
 
   activateListeners(html) {
@@ -147,6 +196,9 @@ export class IndyRouteSettingsBase extends foundry.applications.api.HandlebarsAp
     const checkboxNames = [
       "settings.showDot",
       "settings.showEndX",
+      "settings.showLabel",
+      "settings.labelFollowPath",
+      "settings.labelShowArrow",
       "settings.scaleWithMap",
       "settings.cinematicMovement"
     ];
@@ -176,7 +228,7 @@ export class IndyRouteEditor extends IndyRouteSettingsBase {
   static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
     id: "indy-route-editor",
     window: { title: "Edit Route" },
-    position: { width: 440, height: 464 },
+    position: { width: 440, height: 494 },
     classes: ["indy-route", "indy-route-editor"]
   }, { inplace: false });
 
@@ -247,7 +299,7 @@ export class IndyRouteEditor extends IndyRouteSettingsBase {
     if (!this.route?.points || this.route.points.length < 2) return;
     const settings = this._readSettingsForm();
     const built = buildRouteFromPoints(this.route.points, settings);
-    IndyRouteRenderer.renderStatic(built.path, built.settings, this.route.id);
+    IndyRouteRenderer.renderStatic(built.path, built.settings, this.route.id, this.route.name);
   }
 
   _readSettingsForm() {
@@ -261,6 +313,9 @@ export class IndyRouteEditor extends IndyRouteSettingsBase {
     const checkboxNames = [
       "settings.showDot",
       "settings.showEndX",
+      "settings.showLabel",
+      "settings.labelFollowPath",
+      "settings.labelShowArrow",
       "settings.scaleWithMap",
       "settings.cinematicMovement"
     ];
