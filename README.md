@@ -26,11 +26,13 @@ https://github.com/user-attachments/assets/df07d5de-749d-4e1f-993d-c405c0eef010
 - Cinematic camera movement (optional) with intro/pause timing.
 - Map-scaled line/dot/speed with a multiplier for consistent look across maps.
 - Optional end marker, dot, and token-follow support.
+- Route labels with font, offset, path-following, and direction arrows.
 - Control over many display properties that you can change from defaults.
 - Play a sound during playback (fade out at finish).
 - Travel mode tooltips with time and cost estimates.
 - Configurable travel modes and currency conversions.
 - Export/import routes as JSON for backup or reuse.
+- Persist routes to a scene tile for a baked-in overlay.
 
 ## Install
 Install as a Foundry module and enable it in your world.
@@ -44,7 +46,7 @@ Routes are stored per scene using scene flags.
 ## Quick Start
 1. Open **Route Manager** from the Drawing tools.
 2. Click **Draw New Route**.
-3. Left-click to place points, Backspace to remove last, Enter/Right-click to finish.
+3. Left-click to place points, Backspace to remove last, Enter or double-click to finish.
 4. The route is saved in the current scene, you can preview, edit, change style or delete it.
 5. Click **Play** to animate for all users - it will be sent via sockets and play in sync for all users.
 6. Admire the route!
@@ -55,6 +57,7 @@ Routes are stored per scene using scene flags.
 ## Route Manager
 - **Play**: Broadcasts the animation to all users.
 - **Preview**: Plays the animation just for you.
+- **Persist to Tile**: Bakes the route (and label) into a tile image on the scene.
 - **Edit**: Continue editing points for the route (Backspace can delete previous points still).
 - **Style**: Open the settings dialog for that route.
 - **Clear**: Clears any played/previewed animations of that route.
@@ -89,6 +92,16 @@ Routes are stored on the scene as a flag: `scene.getFlag("indy-route", "routes")
 - **Rotate Token With Path**: rotate Actor sprite to face movement direction.
 - **Actor Scale Multiplier**: scale Actor sprite relative to dot size - (Token uses its normal scaling setting).
 - **Actor Rotation Offset (deg)**: additional rotation offset for sprite - (Token uses its normal rotation lock setting).
+
+### Label
+- **Show Route Label**: toggle route name label.
+- **Label Color**: label text color.
+- **Label Font**: font family used for the label.
+- **Label Font Size**: size of the label text.
+- **Label Offset (px)**: offset perpendicular to the line.
+- **Label Follows Path**: curve text along the path or keep it at a single angle.
+- **Show Direction Arrow**: add an arrow to indicate direction.
+- **Label Position (%)**: placement along the route length.
 
 ### Animation
 - **Draw Speed (px/sec)**: speed of line drawing.
