@@ -305,6 +305,45 @@ export const IndyRouteRenderer = {
       ? (Number.isFinite(settings.pauseMs) ? settings.pauseMs : DEFAULTS.pauseMs)
       : 0;
     const startTimeAdjusted = startTime + introMs + pauseMs;
+    const labelPosition = Number.isFinite(settings.labelPosition) ? settings.labelPosition : 50;
+    const labelSpanInfo = settings.labelFollowPath
+      ? labelRenderer.computeLabelSpanInfo(path, settings, labelText)
+      : null;
+    const labelRevealT = (labelSpanInfo?.metrics?.totalLen && Number.isFinite(labelSpanInfo.startDist))
+      ? Math.min(1, Math.max(0, labelSpanInfo.startDist / labelSpanInfo.metrics.totalLen))
+      : Math.min(1, Math.max(0, labelPosition / 100));
+    let labelShown = false;
+    const maybeShowLabel = () => {
+      if (labelShown) return;
+      labelShown = true;
+      labelRenderer.drawLabel(container, path, settings, labelText, { initialAlpha: 0, spanInfo: labelSpanInfo }).then((result) => {
+        const display = result?.display;
+        if (!display || display.destroyed || container.destroyed) return;
+        const labelLen = Number.isFinite(result?.length)
+          ? result.length
+          : (Number.isFinite(labelSpanInfo?.spanText) ? labelSpanInfo.spanText : 0);
+        const speed = Number.isFinite(settings.drawSpeed) && settings.drawSpeed > 0 ? settings.drawSpeed : 1;
+        const duration = labelLen > 0 ? (labelLen / speed) : 0;
+        if (!Number.isFinite(duration) || duration <= 0) {
+          display.alpha = 1;
+          return;
+        }
+        display.alpha = 0;
+        const ticker = canvas.app.ticker;
+        let fadeElapsed = 0;
+        const onFade = (delta) => {
+          if (display.destroyed || container.destroyed) {
+            ticker.remove(onFade);
+            return;
+          }
+          fadeElapsed += delta / 60;
+          const t = Math.min(1, fadeElapsed / duration);
+          display.alpha = t;
+          if (t >= 1) ticker.remove(onFade);
+        };
+        ticker.add(onFade);
+      });
+    };
 
     finalLine.clear();
     finalLine.lineStyle({
@@ -393,7 +432,7 @@ export const IndyRouteRenderer = {
       dot.clear();
       const end = path[path.length - 1];
       this.drawEndX(container, end.x, end.y, settings, settings.lineWidth * 2);
-      labelRenderer.drawLabel(container, path, settings, labelText);
+      if (!labelShown) maybeShowLabel();
 
       // lingerMs: >0 remove after ms; otherwise persist
       if (typeof lingerMs === "number" && lingerMs > 0) {
@@ -438,6 +477,7 @@ export const IndyRouteRenderer = {
         updateMarker(curr.x, curr.y, angle);
         idx += 1;
       }
+      if (t0 >= labelRevealT) maybeShowLabel();
 
       if ((elapsed / duration) >= 1) {
         // DRAW FULL LINE FIRST
@@ -479,6 +519,7 @@ export const IndyRouteRenderer = {
           updateMarker(curr.x, curr.y, angle);
           idx += 1;
         }
+        if (t >= labelRevealT) maybeShowLabel();
 
         if (t >= 1) {
           ticker.remove(onTick);
@@ -560,8 +601,10 @@ export const IndyRouteRenderer = {
     if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) return null;
 
     const pad = Math.max(10, (settings?.lineWidth ?? 1) * 2 + 4);
-    const width = Math.max(1, Math.ceil(maxX - minX + pad * 2));
-    const height = Math.max(1, Math.ceil(maxY - minY + pad * 2));
+    const baseWidth = Math.max(1, Math.ceil(maxX - minX + pad * 2));
+    const baseHeight = Math.max(1, Math.ceil(maxY - minY + pad * 2));
+    const baseX = minX - pad;
+    const baseY = minY - pad;
     const offsetX = -minX + pad;
     const offsetY = -minY + pad;
     const offsetPath = path.map((p) => ({ x: p.x + offsetX, y: p.y + offsetY }));
@@ -589,7 +632,21 @@ export const IndyRouteRenderer = {
     }
     await labelRenderer.drawLabel(container, offsetPath, settings, labelText);
 
-    const renderTexture = PIXI.RenderTexture.create({ width, height });
+    let tileX = baseX;
+    let tileY = baseY;
+    let renderWidth = baseWidth;
+    let renderHeight = baseHeight;
+    const bounds = container.getLocalBounds?.();
+    if (bounds && Number.isFinite(bounds.width) && Number.isFinite(bounds.height)) {
+      const extraPad = Math.max(2, Math.ceil((settings?.lineWidth ?? 1) / 2));
+      renderWidth = Math.max(1, Math.ceil(bounds.width + extraPad * 2));
+      renderHeight = Math.max(1, Math.ceil(bounds.height + extraPad * 2));
+      container.position.set(-bounds.x + extraPad, -bounds.y + extraPad);
+      tileX = baseX + bounds.x - extraPad;
+      tileY = baseY + bounds.y - extraPad;
+    }
+
+    const renderTexture = PIXI.RenderTexture.create({ width: renderWidth, height: renderHeight });
     renderer.render(container, { renderTexture, clear: true });
     const extractCanvas = renderer.extract.canvas(renderTexture);
     renderTexture.destroy(true);
@@ -618,10 +675,10 @@ export const IndyRouteRenderer = {
     }
     if (!textureSrc) return null;
     const tileData = {
-      x: minX - pad,
-      y: minY - pad,
-      width,
-      height,
+      x: tileX,
+      y: tileY,
+      width: renderWidth,
+      height: renderHeight,
       texture: { src: textureSrc },
       locked: true
     };

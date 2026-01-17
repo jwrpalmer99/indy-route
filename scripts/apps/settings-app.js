@@ -42,6 +42,10 @@ export class IndyRouteSettingsBase extends foundry.applications.api.HandlebarsAp
       if (options.has(key)) return;
       options.set(key, { value, label: label || value });
     };
+    const getPrimaryFamily = (value) => {
+      if (!value) return "";
+      return value.split(",")[0].trim().replace(/^["']|["']$/g, "");
+    };
 
     const defaults = [
       { value: "Modesto Condensed, serif", label: "Modesto Condensed" },
@@ -58,16 +62,27 @@ export class IndyRouteSettingsBase extends foundry.applications.api.HandlebarsAp
       { value: "Impact, sans-serif", label: "Impact" }
     ];
     defaults.forEach((entry) => add(entry.value, entry.label));
+    const defaultFamilies = new Set(
+      defaults
+        .map((entry) => getPrimaryFamily(entry.value).toLowerCase())
+        .filter(Boolean)
+    );
 
     const defs = CONFIG?.fontDefinitions;
     if (defs && typeof defs === "object") {
       Object.entries(defs).forEach(([key, def]) => {
         const family = def?.family ?? def?.fontFamily ?? key;
-        if (family) add(family.toString());
+        if (family) {
+          const primary = getPrimaryFamily(family.toString()).toLowerCase();
+          if (!defaultFamilies.has(primary)) add(family.toString());
+        }
         const fonts = Array.isArray(def?.fonts) ? def.fonts : [];
         fonts.forEach((font) => {
           const f = font?.family ?? font?.fontFamily ?? font?.name ?? "";
-          if (f) add(f.toString());
+          if (f) {
+            const primary = getPrimaryFamily(f.toString()).toLowerCase();
+            if (!defaultFamilies.has(primary)) add(f.toString());
+          }
         });
       });
     }
@@ -75,7 +90,10 @@ export class IndyRouteSettingsBase extends foundry.applications.api.HandlebarsAp
     if (document?.fonts && typeof document.fonts[Symbol.iterator] === "function") {
       for (const face of document.fonts) {
         const family = face?.family;
-        if (family) add(family.toString());
+        if (family) {
+          const primary = getPrimaryFamily(family.toString()).toLowerCase();
+          if (!defaultFamilies.has(primary)) add(family.toString());
+        }
       }
     }
 

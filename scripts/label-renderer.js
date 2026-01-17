@@ -8,6 +8,138 @@ export class IndyRouteLabelRenderer {
 
   arrowRight = "->";
   arrowLeft = "<-";
+  fontFaceCache = new Map();
+  fontDataCache = new Map();
+
+  getPrimaryFontFamily(fontFamily) {
+    if (!fontFamily) return "";
+    const first = fontFamily.split(",")[0] ?? "";
+    return first.trim().replace(/^["']|["']$/g, "");
+  }
+
+  getFontMimeFromUrl(url) {
+    if (!url) return "font/ttf";
+    const clean = url.split("?")[0].toLowerCase();
+    if (clean.endsWith(".woff2")) return "font/woff2";
+    if (clean.endsWith(".woff")) return "font/woff";
+    if (clean.endsWith(".ttf")) return "font/ttf";
+    if (clean.endsWith(".otf")) return "font/otf";
+    if (clean.endsWith(".svg")) return "image/svg+xml";
+    return "font/ttf";
+  }
+
+  async getFontDataUrl(url) {
+    if (!url) return "";
+    if (this.fontDataCache.has(url)) return this.fontDataCache.get(url);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to load font");
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.slice(i, i + chunk));
+      }
+      const b64 = btoa(binary);
+      const mime = response.headers.get("content-type") || this.getFontMimeFromUrl(url);
+      const dataUrl = `data:${mime};base64,${b64}`;
+      this.fontDataCache.set(url, dataUrl);
+      return dataUrl;
+    } catch {
+      this.fontDataCache.set(url, "");
+      return "";
+    }
+  }
+
+  async buildFontFaceCss(fontFamily) {
+    const family = this.getPrimaryFontFamily(fontFamily);
+    if (!family) return "";
+    if (this.fontFaceCache.has(family)) return this.fontFaceCache.get(family);
+    const defs = CONFIG?.fontDefinitions;
+    if (!defs || typeof defs !== "object") return "";
+    const target = family.toLowerCase();
+    let def = null;
+    for (const [key, value] of Object.entries(defs)) {
+      const name = (value?.family ?? value?.fontFamily ?? key ?? "").toString();
+      const lower = name.toLowerCase();
+      if (lower === target || lower.includes(target)) {
+        def = value;
+        break;
+      }
+    }
+    if (!def) {
+      this.fontFaceCache.set(family, "");
+      return "";
+    }
+
+    const safeFamily = family.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const toUrls = (src) => {
+      if (!src) return [];
+      if (Array.isArray(src)) return src.slice();
+      if (typeof src === "string") return [src];
+      if (typeof src === "object") {
+        if (Array.isArray(src.urls)) return src.urls.slice();
+        if (src.urls && typeof src.urls === "object") return Object.values(src.urls);
+        if (Array.isArray(src.src)) return src.src.slice();
+        if (src.src && typeof src.src === "object") return Object.values(src.src);
+        if (src.url) return [src.url];
+        if (src.path) return [src.path];
+        if (src.file) return [src.file];
+        if (src.files && typeof src.files === "object") return Object.values(src.files);
+      }
+      return [];
+    };
+    const normalizeUrl = (url) => {
+      if (!url || typeof url !== "string") return "";
+      const trimmed = url.trim();
+      if (!trimmed) return "";
+      if (/^(https?:|data:|blob:|file:)/i.test(trimmed)) return trimmed;
+      try {
+        return new URL(trimmed, window.location.href).toString();
+      } catch {
+        return trimmed;
+      }
+    };
+    const toFormat = (url) => {
+      const clean = url.split("?")[0].toLowerCase();
+      if (clean.endsWith(".woff2")) return "woff2";
+      if (clean.endsWith(".woff")) return "woff";
+      if (clean.endsWith(".ttf")) return "truetype";
+      if (clean.endsWith(".otf")) return "opentype";
+      if (clean.endsWith(".svg")) return "svg";
+      return "";
+    };
+    const buildSrc = async (urls) => {
+      const entries = [];
+      for (const url of urls) {
+        const normalized = normalizeUrl(url);
+        if (!normalized) continue;
+        const dataUrl = await this.getFontDataUrl(normalized);
+        if (!dataUrl) continue;
+        const format = toFormat(normalized);
+        entries.push(format ? `url("${dataUrl}") format("${format}")` : `url("${dataUrl}")`);
+      }
+      return entries.join(", ");
+    };
+
+    const fontEntries = Array.isArray(def?.fonts) && def.fonts.length ? def.fonts : [def];
+    const faces = [];
+    for (const entry of fontEntries) {
+      const urls = toUrls(entry?.src ?? entry?.urls ?? entry?.url ?? entry?.path ?? entry?.file ?? entry?.files);
+      if (!urls.length) continue;
+      const weight = entry?.weight ?? def?.weight ?? "normal";
+      const style = entry?.style ?? def?.style ?? "normal";
+      const src = await buildSrc(urls);
+      if (!src) continue;
+      faces.push(
+        `@font-face { font-family: '${safeFamily}'; src: ${src}; font-weight: ${weight}; font-style: ${style}; }`
+      );
+    }
+    const css = faces.join("\n");
+    this.fontFaceCache.set(family, css);
+    return css;
+  }
 
   smoothLabelPath(path, settings) {
     if (!Array.isArray(path) || path.length < 3) {
@@ -169,7 +301,61 @@ export class IndyRouteLabelRenderer {
     return best ?? null;
   }
 
-  async drawLabel(container, path, settings, labelText) {
+  computeLabelSpanInfo(path, settings, labelText) {
+    if (!settings?.showLabel) return null;
+    const text = (labelText ?? "").toString().trim();
+    if (!text) return null;
+    const metrics = this.buildPathMetrics(path);
+    if (!metrics) return null;
+    const fontSize = Number.isFinite(settings.labelFontSize)
+      ? settings.labelFontSize
+      : Math.max(10, (settings.lineWidth ?? 1) * 2);
+    const style = new PIXI.TextStyle({
+      fontFamily: (settings.labelFontFamily ?? "Modesto Condensed, serif").toString(),
+      fontSize
+    });
+    const showArrow = settings.labelShowArrow === true;
+    const arrowRight = this.arrowRight;
+    const arrowLeft = this.arrowLeft;
+    const textWidth = Math.max(1, PIXI.TextMetrics.measureText(text, style).width);
+    const spaceWidth = Math.max(1, PIXI.TextMetrics.measureText(" ", style).width);
+    const arrowGap = Math.max(2, fontSize * 0.2);
+    const arrowWidth = showArrow
+      ? Math.max(
+        1,
+        PIXI.TextMetrics.measureText(arrowRight, style).width,
+        PIXI.TextMetrics.measureText(arrowLeft, style).width
+      )
+      : 0;
+    const gapSpaces = showArrow ? Math.max(1, Math.round(arrowGap / spaceWidth)) : 0;
+    const totalWidth = textWidth + (showArrow ? arrowWidth + (gapSpaces * spaceWidth) : 0);
+    if (!Number.isFinite(totalWidth) || totalWidth <= 0) return null;
+    const labelPosition = Number.isFinite(settings.labelPosition) ? settings.labelPosition : 50;
+    const clampedPosition = Math.min(100, Math.max(0, labelPosition));
+    const centerDist = metrics.totalLen * (clampedPosition / 100);
+    const widthScaleBase = Math.min(1, metrics.totalLen / totalWidth);
+    const spanBase = totalWidth * widthScaleBase;
+    const startBase = centerDist - (spanBase / 2);
+    const endBase = centerDist + (spanBase / 2);
+    const labelPathOriginal = this.slicePathByDistance(path, metrics, startBase, endBase);
+    if (labelPathOriginal.length < 2) return null;
+    const labelMetricsOriginal = this.buildPathMetrics(labelPathOriginal);
+    if (!labelMetricsOriginal) return null;
+    const widthScale = Math.min(1, labelMetricsOriginal.totalLen / totalWidth);
+    const spanText = totalWidth * widthScale;
+    const startDist = Math.max(0, Math.min(metrics.totalLen, startBase));
+    return {
+      metrics,
+      totalWidth,
+      spanText,
+      startDist,
+      labelPathOriginal,
+      labelMetricsOriginal,
+      gapSpaces
+    };
+  }
+
+  async drawLabel(container, path, settings, labelText, options = {}) {
     if (!settings?.showLabel) return;
     const text = (labelText ?? "").toString().trim();
     if (!text) return;
@@ -204,6 +390,7 @@ export class IndyRouteLabelRenderer {
     const clampedPosition = Math.min(100, Math.max(0, labelPosition));
     const centerDist = metrics.totalLen * (clampedPosition / 100);
     const showArrow = settings.labelShowArrow === true;
+    const initialAlpha = Number.isFinite(options.initialAlpha) ? options.initialAlpha : 1;
     const smoothDist = Math.max(4, fontSize * 0.6);
     if (!settings.labelFollowPath) {
       const mid = this.pointAtDistanceOnly(path, metrics, centerDist);
@@ -224,53 +411,58 @@ export class IndyRouteLabelRenderer {
       labelTextSprite.rotation = orientedAngle;
       labelTextSprite.position.set(x, y);
       labelTextSprite.zIndex = 4;
+      labelTextSprite.alpha = initialAlpha;
       container.addChild(labelTextSprite);
-      return;
+      const labelLen = Math.max(1, PIXI.TextMetrics.measureText(labelLineText, style).width);
+      return { display: labelTextSprite, length: labelLen };
     }
 
 
-    const textWidth = Math.max(1, PIXI.TextMetrics.measureText(text, style).width);
-    const spaceWidth = Math.max(1, PIXI.TextMetrics.measureText(" ", style).width);
-    const arrowGap = Math.max(2, fontSize * 0.2);
-    const arrowWidth = showArrow
-      ? Math.max(
-        1,
-        PIXI.TextMetrics.measureText(arrowRight, style).width,
-        PIXI.TextMetrics.measureText(arrowLeft, style).width
-      )
-      : 0;
-    const gapSpaces = showArrow ? Math.max(1, Math.round(arrowGap / spaceWidth)) : 0;
+    const spanInfo = options.spanInfo;
+    let totalWidth = null;
+    let spanText = null;
+    let labelPathOriginal = null;
+    let labelMetricsOriginal = null;
+    let gapSpaces = 0;
+    if (spanInfo?.totalWidth && spanInfo?.labelPathOriginal && spanInfo?.labelMetricsOriginal) {
+      totalWidth = spanInfo.totalWidth;
+      spanText = spanInfo.spanText;
+      labelPathOriginal = spanInfo.labelPathOriginal;
+      labelMetricsOriginal = spanInfo.labelMetricsOriginal;
+      gapSpaces = Number.isFinite(spanInfo.gapSpaces) ? spanInfo.gapSpaces : 0;
+    } else {
+      const textWidth = Math.max(1, PIXI.TextMetrics.measureText(text, style).width);
+      const spaceWidth = Math.max(1, PIXI.TextMetrics.measureText(" ", style).width);
+      const arrowGap = Math.max(2, fontSize * 0.2);
+      const arrowWidth = showArrow
+        ? Math.max(
+          1,
+          PIXI.TextMetrics.measureText(arrowRight, style).width,
+          PIXI.TextMetrics.measureText(arrowLeft, style).width
+        )
+        : 0;
+      gapSpaces = showArrow ? Math.max(1, Math.round(arrowGap / spaceWidth)) : 0;
+      totalWidth = textWidth + (showArrow ? arrowWidth + (gapSpaces * spaceWidth) : 0);
+      if (!Number.isFinite(totalWidth) || totalWidth <= 0) return;
+      const widthScaleBase = Math.min(1, metrics.totalLen / totalWidth);
+      const spanBase = totalWidth * widthScaleBase;
+      const startBase = centerDist - (spanBase / 2);
+      const endBase = centerDist + (spanBase / 2);
+      labelPathOriginal = this.slicePathByDistance(path, metrics, startBase, endBase);
+      if (labelPathOriginal.length < 2) return;
+      labelMetricsOriginal = this.buildPathMetrics(labelPathOriginal);
+      if (!labelMetricsOriginal) return;
+      const widthScale = Math.min(1, labelMetricsOriginal.totalLen / totalWidth);
+      spanText = totalWidth * widthScale;
+    }
     const gapText = showArrow ? " ".repeat(gapSpaces) : "";
-    const totalWidth = textWidth + (showArrow ? arrowWidth + (gapSpaces * spaceWidth) : 0);
-    if (!Number.isFinite(totalWidth) || totalWidth <= 0) return;
-    const widthScaleBase = Math.min(1, metrics.totalLen / totalWidth);
-    const spanBase = totalWidth * widthScaleBase;
-    const startBase = centerDist - (spanBase / 2);
-    const endBase = centerDist + (spanBase / 2);
-    const labelPathOriginal = this.slicePathByDistance(path, metrics, startBase, endBase);
-    if (labelPathOriginal.length < 2) return;
-    const labelMetricsOriginal = this.buildPathMetrics(labelPathOriginal);
-    if (!labelMetricsOriginal) return;
-
-    const widthScale = Math.min(1, labelMetricsOriginal.totalLen / totalWidth);
-    const spanText = totalWidth * widthScale;
+    if (!Number.isFinite(totalWidth) || totalWidth <= 0 || !labelPathOriginal || !labelMetricsOriginal) return;
 
     const displayReversed = labelPathOriginal[0].x > labelPathOriginal[labelPathOriginal.length - 1].x;
     const labelPathDisplay = displayReversed ? labelPathOriginal.slice().reverse() : labelPathOriginal;
     const labelPathSmooth = this.smoothLabelPath(labelPathDisplay, settings);
     const labelMetricsDisplay = this.buildPathMetrics(labelPathSmooth);
     if (!labelMetricsDisplay) return;
-
-    if (labelPathSmooth.length >= 2) {
-      const debugLine = new PIXI.Graphics();
-      debugLine.lineStyle({ width: 1, color: 0x00ffff, alpha: 0.7 });
-      debugLine.moveTo(labelPathSmooth[0].x, labelPathSmooth[0].y);
-      for (let i = 1; i < labelPathSmooth.length; i++) {
-        debugLine.lineTo(labelPathSmooth[i].x, labelPathSmooth[i].y);
-      }
-      debugLine.zIndex = 1;
-      container.addChild(debugLine);
-    }
 
     let minX = Infinity;
     let minY = Infinity;
@@ -323,12 +515,15 @@ export class IndyRouteLabelRenderer {
     const shadowDx = 2;
     const shadowDy = 2;
     const shadowBlur = 2;
+    const fontFaceCss = await this.buildFontFaceCss(style.fontFamily);
+    const fontFaceBlock = fontFaceCss ? `<style>${fontFaceCss}</style>` : "";
     const svg = `<?xml version="1.0" encoding="UTF-8"?>` +
       `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
       `<defs>` +
       `<filter id="label-shadow" x="-50%" y="-50%" width="200%" height="200%">` +
       `<feDropShadow dx="${shadowDx}" dy="${shadowDy}" stdDeviation="${shadowBlur}" flood-color="#000000" flood-opacity="0.6"/>` +
       `</filter>` +
+      `${fontFaceBlock}` +
       `</defs>` +
       `<path id="${pathId}" d="${pathData}" fill="none" stroke="none"/>` +
       `<text font-family="${escapeXml(style.fontFamily || "sans-serif")}" font-size="${fontSize}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" paint-order="stroke" dy="${dy}" filter="url(#label-shadow)" xml:space="preserve">` +
@@ -339,6 +534,7 @@ export class IndyRouteLabelRenderer {
     const sprite = new PIXI.Sprite(texture);
     sprite.position.set(minX - pad, minY - pad);
     sprite.zIndex = 4;
+    sprite.alpha = initialAlpha;
     container.addChild(sprite);
 
     const baseTexture = texture?.baseTexture;
@@ -355,5 +551,6 @@ export class IndyRouteLabelRenderer {
         setTimeout(finish, 500);
       });
     }
+    return { display: sprite, length: spanText };
   }
 }
