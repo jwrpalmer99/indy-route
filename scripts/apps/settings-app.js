@@ -259,6 +259,7 @@ export class IndyRouteEditor extends IndyRouteSettingsBase {
       { inplace: false }
     );
     this.onSave = callbacks.onSave;
+    this._rangeDragActive = false;
   }
 
   _attachPartListeners(partId, html, options) {
@@ -282,7 +283,7 @@ export class IndyRouteEditor extends IndyRouteSettingsBase {
         scaleMapSize: { width: mapSize.width, height: mapSize.height }
       };
       this.settings = next;
-      this._previewFromForm();
+      this._previewFromForm({ forceHighQuality: true });
     };
     content?.addEventListener("click", this._editorClickHandler, true);
 
@@ -293,12 +294,40 @@ export class IndyRouteEditor extends IndyRouteSettingsBase {
     this._editorInputHandler = (event) => {
       const form = event.target?.closest?.("form");
       if (!form) return;
-      this._previewFromForm();
+      const target = event.target;
+      const isRange = target?.type === "range";
+      const forceHighQuality = !(isRange && (this._rangeDragActive || event.type === "input"));
+      this._previewFromForm({ forceHighQuality });
     };
     content?.addEventListener("input", this._editorInputHandler, true);
     content?.addEventListener("change", this._editorInputHandler, true);
 
-    this._previewFromForm();
+    if (this._rangePointerDownHandler && content?.removeEventListener) {
+      content.removeEventListener("pointerdown", this._rangePointerDownHandler, true);
+    }
+    this._rangePointerDownHandler = (event) => {
+      if (event.target?.type !== "range") return;
+      this._rangeDragActive = true;
+    };
+    content?.addEventListener("pointerdown", this._rangePointerDownHandler, true);
+
+    if (this._rangePointerUpHandler && content?.removeEventListener) {
+      content.removeEventListener("pointerup", this._rangePointerUpHandler, true);
+      content.removeEventListener("pointercancel", this._rangePointerUpHandler, true);
+    }
+    this._rangePointerUpHandler = (event) => {
+      if (!this._rangeDragActive) return;
+      if (event.target?.type === "range") {
+        this._rangeDragActive = false;
+        this._previewFromForm({ forceHighQuality: true });
+        return;
+      }
+      this._rangeDragActive = false;
+    };
+    content?.addEventListener("pointerup", this._rangePointerUpHandler, true);
+    content?.addEventListener("pointercancel", this._rangePointerUpHandler, true);
+
+    this._previewFromForm({ forceHighQuality: true });
   }
 
   async _prepareContext(options = {}) {
@@ -313,12 +342,19 @@ export class IndyRouteEditor extends IndyRouteSettingsBase {
     };
   }
 
-  _previewFromForm() {
+  _previewFromForm(options = {}) {
     if (!this.route?.points || this.route.points.length < 2) return;
     const settings = this._readSettingsForm();
     const built = buildRouteFromPoints(this.route.points, settings);
-    IndyRouteRenderer.renderStatic(built.path, built.settings, this.route.id, this.route.name);
+    IndyRouteRenderer.renderStatic(
+      built.path,
+      built.settings,
+      this.route.id,
+      this.route.name,
+      { forceHighQuality: options.forceHighQuality }
+    );
   }
+
 
   _readSettingsForm() {
     const form = this._getFormElement();

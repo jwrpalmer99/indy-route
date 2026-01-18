@@ -135,6 +135,72 @@ Exported files include all routes in the current scene:
 ```
 Import replaces the current scene routes.
 
+## API
+The module exposes an API at `game.modules.get("indy-route").api`.
+
+### Basics
+```js
+const api = game.modules.get("indy-route").api;
+
+// list routes on the current scene
+const routes = api.listRoutes();
+
+// find by name and play
+const route = api.getRouteByName("Route 1");
+api.playRoute(route?.id);
+```
+
+### Draw and play a route immediately
+```js
+api.drawRoute({
+  points: [{ x: 100, y: 100 }, { x: 400, y: 300 }],
+  name: "Test Route",
+  routeId: "route-1"
+});
+```
+
+### Create a route (no playback)
+```js
+const id = await api.createRoute({
+  points: [{ x: 100, y: 100 }, { x: 400, y: 300 }],
+  name: "Saved Route"
+});
+```
+
+### Play an existing saved route
+```js
+api.playRoute("ROUTE_ID", {
+  labelText: "Custom Label",
+  lingerMs: 2000,
+  cinematicMovement: true,
+  labelShowArrow: false,
+  drawSpeed: 80
+});
+```
+
+### Persist a route to a tile
+```js
+await api.drawRouteToTile("ROUTE_ID", {
+  showEndX: true,
+  labelShowArrow: true,
+  drawSpeed: 60
+});
+```
+
+### Clear routes
+```js
+api.clearRoute("ROUTE_ID");
+api.clearAllRoutes();
+```
+
+### Options reference
+- Common options (drawRoute/createRoute): `points` or `path`, `name`, `cinematicMovement`, `drawSpeed`, `lingerMs`, `labelShowArrow`, `labelShow`, `labelFontFamily`, `showEndX`, `settings`, `sceneId`
+- `drawRoute(options)`: adds `startTime`, `routeId`, `labelText`, `broadcast`
+- `createRoute(options)`: no playback; returns the new route id
+- `playRoute(routeId, options)`: `startTime`, `lingerMs`, `labelText`, `cinematicMovement`, `labelShowArrow`, `drawSpeed`
+- `drawRouteToTile(routeIdOrOptions, options?)`: `routeId`, `points`, `path`, `settings`, `showEndX`, `labelText`, `labelShowArrow`, `drawSpeed`
+Note: `settings.labelFontSize` is capped at 200 to prevent oversized textures.
+
 ## Notes
 - Routes are scene-specific.
 - If a sound is set, it plays at animation start and fades out at the end.

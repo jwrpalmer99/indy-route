@@ -29,27 +29,17 @@ export class IndyRouteLabelRenderer {
   }
 
   async getFontDataUrl(url) {
-    if (!url) return "";
-    if (this.fontDataCache.has(url)) return this.fontDataCache.get(url);
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to load font");
-      const buffer = await response.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      const chunk = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunk) {
-        binary += String.fromCharCode(...bytes.slice(i, i + chunk));
+      if (!url) return "";
+      if (this.fontDataCache.has(url)) return this.fontDataCache.get(url);
+      try {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          const blobUrl = URL.createObjectURL(blob); // Browser-native memory reference
+          this.fontDataCache.set(url, blobUrl);
+          return blobUrl;
+      } catch {
+          return "";
       }
-      const b64 = btoa(binary);
-      const mime = response.headers.get("content-type") || this.getFontMimeFromUrl(url);
-      const dataUrl = `data:${mime};base64,${b64}`;
-      this.fontDataCache.set(url, dataUrl);
-      return dataUrl;
-    } catch {
-      this.fontDataCache.set(url, "");
-      return "";
-    }
   }
 
   async buildFontFaceCss(fontFamily) {
@@ -307,9 +297,10 @@ export class IndyRouteLabelRenderer {
     if (!text) return null;
     const metrics = this.buildPathMetrics(path);
     if (!metrics) return null;
-    const fontSize = Number.isFinite(settings.labelFontSize)
+    const rawFontSize = Number.isFinite(settings.labelFontSize)
       ? settings.labelFontSize
       : Math.max(10, (settings.lineWidth ?? 1) * 2);
+    const fontSize = Math.min(200, rawFontSize);
     const style = new PIXI.TextStyle({
       fontFamily: (settings.labelFontFamily ?? "Modesto Condensed, serif").toString(),
       fontSize
@@ -356,18 +347,53 @@ export class IndyRouteLabelRenderer {
   }
 
   async drawLabel(container, path, settings, labelText, options = {}) {
-    if (!settings?.showLabel) return;
-    const text = (labelText ?? "").toString().trim();
-    if (!text) return;
+    if (!settings?.showLabel) {
+      const sprite = container?.indyRouteLabelSprite;
+      if (sprite) {
+        const oldTexture = sprite.texture;
+        try { sprite.destroy({ children: true }); } catch {}
+        if (oldTexture && oldTexture !== PIXI.Texture.WHITE) {
+          try { oldTexture.destroy(true); } catch {}
+        }
+        container.indyRouteLabelSprite = null;
+      }
+      return;
+    }
+    const forceHighQuality = options.forceHighQuality !== undefined ? options.forceHighQuality : true;
+    if (container) {
+      container.indyRouteLabelLastArgs = {
+        path,
+        settings,
+        labelText,
+        options: { ...options, forceHighQuality }
+      };
+    }
+    if (container?.indyRouteLabelInFlight) {
+      container.indyRouteLabelPending = container.indyRouteLabelLastArgs;
+      return;
+    }
+    // try {
+    //   console.log("IndyRoute label: drawLabel start", {
+    //     followPath: !!settings.labelFollowPath,
+    //     fontSize: settings.labelFontSize,
+    //     label: (labelText ?? "").toString().slice(0, 80),
+    //     highQuality: !!forceHighQuality
+    //   });
+    // } catch {}
+    if (container) container.indyRouteLabelInFlight = true;
+    try {
+      const text = (labelText ?? "").toString().trim();
+      if (!text) return;
     const startRoute = path?.[0];
     const endRoute = path?.[path.length - 1];
     const routeDx = (endRoute?.x ?? 0) - (startRoute?.x ?? 0);
     const arrowRight = this.arrowRight;
     const arrowLeft = this.arrowLeft;
     const travelRight = routeDx >= 0;
-    const fontSize = Number.isFinite(settings.labelFontSize)
+    const rawFontSize = Number.isFinite(settings.labelFontSize)
       ? settings.labelFontSize
       : Math.max(10, (settings.lineWidth ?? 1) * 2);
+    const fontSize = Math.min(200, rawFontSize);
     const style = new PIXI.TextStyle({
       fontFamily: (settings.labelFontFamily ?? "Modesto Condensed, serif").toString(),
       fontSize,
@@ -380,6 +406,28 @@ export class IndyRouteLabelRenderer {
       dropShadowBlur: 2,
       dropShadowDistance: 2
     });
+    const clearLabelSprite = () => {
+        const sprite = container?.indyRouteLabelSprite;
+        if (!sprite) return;
+        
+        const oldTexture = sprite.texture;
+        // Don't destroy the sprite, just hide it and un-reference the texture
+        sprite.visible = false;
+        sprite.texture = PIXI.Texture.WHITE; 
+
+        if (oldTexture && oldTexture !== PIXI.Texture.WHITE) {
+            // This is the critical part for GPU memory
+            oldTexture.destroy(true); 
+        }
+    };
+    const clampScaleToTexture = (baseWidth, baseHeight, desiredScale) => {
+      const gl = canvas?.app?.renderer?.gl;
+      const maxSize = gl?.getParameter?.(gl.MAX_TEXTURE_SIZE);
+      if (!Number.isFinite(maxSize) || maxSize <= 0) return desiredScale;
+      const maxDimBase = Math.max(1, Math.max(baseWidth, baseHeight));
+      const maxScale = Math.max(1, Math.floor(maxSize / maxDimBase));
+      return Math.min(desiredScale, maxScale);
+    };
     const metrics = this.buildPathMetrics(path);
     if (!metrics) return;
     const offset = Number.isFinite(settings.labelOffset) ? settings.labelOffset : 0;
@@ -392,9 +440,9 @@ export class IndyRouteLabelRenderer {
     const showArrow = settings.labelShowArrow === true;
     const initialAlpha = Number.isFinite(options.initialAlpha) ? options.initialAlpha : 1;
     const smoothDist = Math.max(4, fontSize * 0.6);
-    if (!settings.labelFollowPath) {
+    const renderSimpleLabel = () => {
       const mid = this.pointAtDistanceOnly(path, metrics, centerDist);
-      if (!mid) return;
+      if (!mid) return null;
       const midPathAngle = this.getSmoothedAngleAtDistance(path, metrics, centerDist, smoothDist);
       const orientedAngle = this.orientToScreen(midPathAngle);
       const angleDelta = this.normalizeAngle(orientedAngle - midPathAngle);
@@ -406,15 +454,46 @@ export class IndyRouteLabelRenderer {
       const labelLineText = showArrow
         ? (arrowGlyph === arrowRight ? `${text} ${arrowGlyph}` : `${arrowGlyph} ${text}`)
         : text;
-      const labelTextSprite = new PIXI.Text(labelLineText, style);
+      let labelTextSprite = container?.indyRouteLabelSprite;
+      if (labelTextSprite && !(labelTextSprite instanceof PIXI.Text)) {
+        clearLabelSprite();
+        labelTextSprite = null;
+      }
+      if (!labelTextSprite) {
+        labelTextSprite = new PIXI.Text(labelLineText, style);
+        container.addChild(labelTextSprite);
+        container.indyRouteLabelSprite = labelTextSprite;
+      } else {
+        labelTextSprite.style = style;
+        labelTextSprite.text = labelLineText;
+      }
+      const desiredScale = (fontSize <= 8 ? 6 : (fontSize <= 12 ? 4 : 2)) * 8;
+      const textMetrics = PIXI.TextMetrics.measureText(labelLineText, style);
+      const baseWidth = Math.max(1, textMetrics?.width ?? 0);
+      const baseHeight = Math.max(1, textMetrics?.height ?? fontSize);
+      const maxRenderScale = forceHighQuality ? 8 : 1;
+      const renderScale = Math.min(maxRenderScale, clampScaleToTexture(baseWidth, baseHeight, desiredScale));
+      // try {
+      //   console.log("IndyRoute label: simple texture", {
+      //     renderScale,
+      //     desiredScale,
+      //     maxRenderScale
+      //   });
+      // } catch {}
+      labelTextSprite.resolution = renderScale;
+      labelTextSprite.updateText?.();
+      labelTextSprite.texture?.baseTexture?.update?.();
       labelTextSprite.anchor.set(0.5);
       labelTextSprite.rotation = orientedAngle;
       labelTextSprite.position.set(x, y);
       labelTextSprite.zIndex = 4;
       labelTextSprite.alpha = initialAlpha;
-      container.addChild(labelTextSprite);
       const labelLen = Math.max(1, PIXI.TextMetrics.measureText(labelLineText, style).width);
       return { display: labelTextSprite, length: labelLen };
+    };
+
+    if (!settings.labelFollowPath) {
+      return renderSimpleLabel();
     }
 
 
@@ -477,12 +556,38 @@ export class IndyRouteLabelRenderer {
     }
     if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) return;
 
-    const pad = Math.max(6, fontSize + Math.abs(offsetPx) + (settings.lineWidth ?? 1));
-    const width = Math.max(1, Math.ceil(maxX - minX + pad * 2));
-    const height = Math.max(1, Math.ceil(maxY - minY + pad * 2));
-    const offsetX = -minX + pad;
-    const offsetY = -minY + pad;
-    const pathData = `M ${labelPathSmooth.map((p) => `${(p.x + offsetX).toFixed(2)} ${(p.y + offsetY).toFixed(2)}`).join(" L ")}`;
+    const renderScaleDesired = (fontSize <= 8 ? 12 : (fontSize <= 12 ? 8 : (fontSize <= 32 ? 4 :  (fontSize <= 62 ? 2 : 1)))) * 2;
+    const gl = canvas?.app?.renderer?.gl;
+    const maxSize = gl?.getParameter?.(gl.MAX_TEXTURE_SIZE);
+    const maxTextureSize = Number.isFinite(maxSize) && maxSize > 0
+      ? Math.min(maxSize, forceHighQuality ? 4096 : 2048)
+      : (forceHighQuality ? 4096 : 2048);
+    const extentX = Math.max(1, maxX - minX);
+    const extentY = Math.max(1, maxY - minY);
+    let offsetPxClamped = offsetPx;
+    if (Number.isFinite(maxSize) && maxSize > 0) {
+      const baseExtent = Math.max(extentX, extentY);
+      const maxPad = Math.max(0, maxTextureSize - baseExtent);
+      const maxPadHalf = maxPad / 2;
+      const lineWidth = settings.lineWidth ?? 1;
+      const maxOffset = Math.max(0, maxPadHalf - fontSize - lineWidth);
+      if (Math.abs(offsetPxClamped) > maxOffset) {
+        offsetPxClamped = Math.sign(offsetPxClamped || 1) * maxOffset;
+      }
+    }
+    const pad = Math.max(6, fontSize + Math.abs(offsetPxClamped) + (settings.lineWidth ?? 1));
+    const baseWidth = Math.max(1, (extentX + pad * 2));
+    const baseHeight = Math.max(1, (extentY + pad * 2));
+    const oversizeLabel = baseWidth > 10000 || baseHeight > 10000;
+    const maxRenderScale = oversizeLabel ? 1 : (forceHighQuality ? 16 : 1);
+    const renderScale = Math.min(maxRenderScale, clampScaleToTexture(baseWidth, baseHeight, renderScaleDesired));
+    const width = Math.max(1, Math.ceil(baseWidth * renderScale));
+    const height = Math.max(1, Math.ceil(baseHeight * renderScale));
+    const offsetBaseX = -minX + pad;
+    const offsetBaseY = -minY + pad;
+    const offsetX = offsetBaseX * renderScale;
+    const offsetY = offsetBaseY * renderScale;
+    const pathData = `M ${labelPathSmooth.map((p) => `${((p.x + offsetBaseX) * renderScale).toFixed(4)} ${((p.y + offsetBaseY) * renderScale).toFixed(4)}`).join(" L ")}`;
 
     const escapeXml = (value) => value
       .replace(/&/g, "&amp;")
@@ -494,15 +599,15 @@ export class IndyRouteLabelRenderer {
     const pathId = `indy-route-label-${foundry.utils.randomID()}`;
     const fill = settings.labelColor ?? "#ffffff";
     const stroke = "#000000";
-    const strokeWidth = Math.max(1, Math.round(fontSize / 8));
-    const textLength = spanText.toFixed(2);
+    const strokeWidth = Math.max(1, Math.round(fontSize / 8)) * renderScale;
+    const textLength = (spanText * renderScale).toFixed(4);
     const metricsSample = PIXI.TextMetrics.measureText("Mg", style);
     const ascent = metricsSample?.fontProperties?.ascent ?? (fontSize * 0.8);
     const descent = metricsSample?.fontProperties?.descent ?? (fontSize * 0.2);
     const centerShift = (descent - ascent) / 2;
-    const dy = Number.isFinite(offsetPx)
-      ? (offsetPx + centerShift).toFixed(2)
-      : centerShift.toFixed(2);
+    const dy = Number.isFinite(offsetPxClamped)
+      ? ((offsetPxClamped + centerShift) * renderScale).toFixed(4)
+      : (centerShift * renderScale).toFixed(4);
     const arrowGlyph = displayReversed ? arrowLeft : arrowRight;
     const textEsc = escapeXml(text);
     const gapEsc = escapeXml(gapText);
@@ -512,30 +617,65 @@ export class IndyRouteLabelRenderer {
         ? `${arrowEsc}${gapEsc}${textEsc}`
         : `${textEsc}${gapEsc}${arrowEsc}`)
       : textEsc;
-    const shadowDx = 2;
-    const shadowDy = 2;
-    const shadowBlur = 2;
+    const shadowDx = 1 * renderScale;
+    const shadowDy = 1 * renderScale;
+    const shadowBlur = 0.6 * renderScale;
+    const updateToken = (container.indyRouteLabelUpdateToken ?? 0) + 1;
+    container.indyRouteLabelUpdateToken = updateToken;
     const fontFaceCss = await this.buildFontFaceCss(style.fontFamily);
+    if (container.indyRouteLabelUpdateToken !== updateToken) return;
     const fontFaceBlock = fontFaceCss ? `<style>${fontFaceCss}</style>` : "";
     const svg = `<?xml version="1.0" encoding="UTF-8"?>` +
       `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
       `<defs>` +
       `<filter id="label-shadow" x="-50%" y="-50%" width="200%" height="200%">` +
-      `<feDropShadow dx="${shadowDx}" dy="${shadowDy}" stdDeviation="${shadowBlur}" flood-color="#000000" flood-opacity="0.6"/>` +
+      `<feDropShadow dx="${shadowDx}" dy="${shadowDy}" stdDeviation="${shadowBlur}" flood-color="#000000" flood-opacity="0.85"/>` +
       `</filter>` +
       `${fontFaceBlock}` +
       `</defs>` +
       `<path id="${pathId}" d="${pathData}" fill="none" stroke="none"/>` +
-      `<text font-family="${escapeXml(style.fontFamily || "sans-serif")}" font-size="${fontSize}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" paint-order="stroke" dy="${dy}" filter="url(#label-shadow)" xml:space="preserve">` +
+      `<text font-family="${escapeXml(style.fontFamily || "sans-serif")}" font-size="${fontSize * renderScale}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" paint-order="stroke" dy="${dy}" filter="url(#label-shadow)" xml:space="preserve" text-rendering="geometricPrecision" shape-rendering="geometricPrecision">` +
       `<textPath href="#${pathId}" startOffset="50%" text-anchor="middle" lengthAdjust="spacingAndGlyphs" textLength="${textLength}">${svgLabelText}</textPath>` +
       `</text></svg>`;
     const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-    const texture = PIXI.Texture.from(svgUrl);
-    const sprite = new PIXI.Sprite(texture);
+    const basePTexture = new PIXI.BaseTexture(svgUrl);
+    const texture = new PIXI.Texture(basePTexture);
+    if (container.indyRouteLabelUpdateToken !== updateToken) {
+      try { texture.destroy(true); } catch {}
+      return;
+    }
+    let sprite = container.indyRouteLabelSprite;
+    if (!sprite || !(sprite instanceof PIXI.Sprite)) {
+      clearLabelSprite();
+      sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+      sprite.visible = false;
+      container.addChild(sprite);
+      container.indyRouteLabelSprite = sprite;
+    }
+    const oldTexture = sprite.texture;
+    sprite.alpha = initialAlpha;
+    const applyTexture = () => {
+        if (container.indyRouteLabelUpdateToken !== updateToken) {
+            texture.destroy(true);
+            return;
+        }
+
+        const sprite = container.indyRouteLabelSprite;
+        const oldTexture = sprite.texture;
+
+        sprite.texture = texture;
+        sprite.visible = true;
+        sprite.alpha = initialAlpha;
+
+        // Safety: Only destroy if it's not the one we just put on
+        if (oldTexture && oldTexture !== texture && oldTexture !== PIXI.Texture.WHITE) {
+            oldTexture.destroy(true); // true = destroy the underlying BaseTexture/GPU buffer
+        }
+    };
     sprite.position.set(minX - pad, minY - pad);
+    if (renderScale !== 1) sprite.scale.set(1 / renderScale);
     sprite.zIndex = 4;
     sprite.alpha = initialAlpha;
-    container.addChild(sprite);
 
     const baseTexture = texture?.baseTexture;
     if (baseTexture && !baseTexture.valid && baseTexture.once) {
@@ -551,6 +691,50 @@ export class IndyRouteLabelRenderer {
         setTimeout(finish, 500);
       });
     }
+    const cleanupOld = () => {
+      if (oldTexture && oldTexture !== PIXI.Texture.WHITE && oldTexture !== sprite.texture) {
+        try { oldTexture.destroy(true); } catch {}
+      }
+    };
+    if (baseTexture?.valid) {
+      applyTexture();
+      cleanupOld();
+    } else {
+      applyTexture();
+      sprite.visible = false;
+    }
+    try {
+      const gl = canvas?.app?.renderer?.gl;
+      const maxSize = gl?.getParameter?.(gl.MAX_TEXTURE_SIZE);
+      // console.log("IndyRoute label: follow-path texture", {
+      //   width,
+      //   height,
+      //   renderScale,
+      //   desiredScale: renderScaleDesired,
+      //   maxRenderScale,
+      //   maxTextureSize: maxSize ?? null
+      // });
+    } catch {}
+    sprite.alpha = initialAlpha;
+    sprite.visible = true;
+    cleanupOld();
     return { display: sprite, length: spanText };
+    } finally {
+      if (container) container.indyRouteLabelInFlight = false;
+      if (container?.indyRouteLabelPending) {
+        const pending = container.indyRouteLabelPending;
+        container.indyRouteLabelPending = null;
+        //console.log("IndyRoute label: processing pending label update");
+        setTimeout(() => {
+          this.drawLabel(
+            container,
+            pending.path,
+            pending.settings,
+            pending.labelText,
+            pending.options
+          );
+        }, 0);
+      }
+    }
   }
 }

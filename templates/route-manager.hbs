@@ -44,6 +44,25 @@
         gap: 6px;
         min-width: 0;
     }
+    .indy-route-manager .route-drag-handle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 14px;
+        height: 22px;
+        border-radius: 3px;
+        color: var(--color-text-light-6);
+        background: transparent;
+        cursor: grab;
+        flex: 0 0 auto;
+    }
+    .indy-route-manager .route-drag-handle:active {
+        cursor: grabbing;
+    }
+    .indy-route-manager .route-drag-handle i {
+        font-size: 0.7rem;
+        opacity: 0.7;
+    }
     .indy-route-manager .route-name-row .route-name {
         flex: 1 1 auto;
         min-width: 0;
@@ -67,6 +86,13 @@
         gap: 6px;
         justify-content: flex-end;
     }
+    .indy-route-manager .route-item.drag-over {
+        border-color: var(--color-border-highlight);
+        box-shadow: 0 0 0 2px var(--color-border-highlight) inset;
+    }
+    .indy-route-manager .route-item.dragging {
+        opacity: 0.65;
+    }
 </style>
 
 <form class="indy-route-manager">
@@ -81,9 +107,12 @@
     <div class="route-list">
         {{#if routes.length}}
             {{#each routes as |route|}}
-                <div class="route-item {{#if (eq route.id ../selectedId)}}selected{{/if}}" data-action="select-route" data-route-id="{{route.id}}">
+                <div class="route-item {{#if (eq route.id ../selectedId)}}selected{{/if}}" data-action="select-route" data-route-id="{{route.id}}" data-draggable-route="{{route.id}}">
                     <div class="route-name-row">
-                        <input class="route-name" type="text" data-action="rename-route" data-route-id="{{route.id}}" value="{{route.name}}" />
+                        <span class="route-drag-handle" draggable="true" data-drag-handle="true" data-tooltip="Drag to reorder">
+                            <i class="fa-solid fa-grip-dots-vertical"></i>
+                        </span>
+                        <input class="route-name" type="text" data-action="rename-route" data-route-id="{{route.id}}" value="{{route.name}}" maxlength="50" />
                         {{#if route.lengthLabel}}
                         <span class="route-info" data-tooltip="{{route.lengthLabel}}" data-tooltip-direction="UP" data-tooltip-class="indy-route-tooltip">
                             <i class="fa-solid fa-ruler"></i>

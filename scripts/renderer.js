@@ -200,7 +200,10 @@ export const IndyRouteRenderer = {
         doc?.actor?.prototypeToken?.texture?.src ||
         doc?.img ||
         null;
-      if (src) texture = await loadTexture(src);
+      if (src) {
+        const loader = foundry?.canvas?.loadTexture ?? loadTexture;
+        texture = await loader(src);
+      }
     } catch {}
 
     root.tokenCache.set(uuid, texture);
@@ -228,6 +231,33 @@ export const IndyRouteRenderer = {
     }
   },
 
+  async resolveRouteTokenInfo(uuid) {
+    if (!uuid) return { tokenDoc: null, sourceType: null };
+    try {
+      const doc = await fromUuid(uuid);
+      let tokenDoc = null;
+      let sourceType = null;
+      if (doc?.documentName === "Token") {
+        tokenDoc = doc;
+        sourceType = "token";
+      } else if (doc?.document?.documentName === "Token") {
+        tokenDoc = doc.document;
+        sourceType = "token";
+      } else if (doc?.documentName === "Actor") {
+        const tokens = doc.getActiveTokens?.(true, true) ?? doc.getActiveTokens?.() ?? [];
+        tokenDoc = tokens[0]?.document ?? null;
+        sourceType = "actor";
+      }
+      if (!tokenDoc) return { tokenDoc: null, sourceType };
+      if (tokenDoc.parent?.id && canvas?.scene?.id && tokenDoc.parent.id !== canvas.scene.id) {
+        return { tokenDoc: null, sourceType };
+      }
+      return { tokenDoc, sourceType };
+    } catch {
+      return { tokenDoc: null, sourceType: null };
+    }
+  },
+
   async resolveRouteSound(value) {
     if (!value) return null;
     const root = this.ensureRoot();
@@ -248,6 +278,86 @@ export const IndyRouteRenderer = {
 
     root.soundCache.set(value, src);
     return src;
+  },
+
+  snapshotFogExploration() {
+    const exploration = canvas?.fog?.exploration ?? null;
+    if (!exploration) return { exploration: null, explored: null, hadExploration: false };
+    const explored =
+      exploration.document?.explored ??
+      exploration.explored ??
+      exploration.data?.explored ??
+      null;
+    if (explored == null) return { exploration, explored: null, hadExploration: false };
+    if (typeof explored === "string") return { exploration, explored, hadExploration: true };
+    if (explored instanceof ArrayBuffer) return { exploration, explored: explored.slice(0), hadExploration: true };
+    if (ArrayBuffer.isView(explored)) {
+      const copy = explored.slice ? explored.slice() : new explored.constructor(explored);
+      return { exploration, explored: copy, hadExploration: true };
+    }
+    if (explored?.clone) {
+      try {
+        return { exploration, explored: explored.clone(), hadExploration: true };
+      } catch {}
+    }
+    if (foundry.utils?.deepClone) {
+      return { exploration, explored: foundry.utils.deepClone(explored), hadExploration: true };
+    }
+    return { exploration, explored, hadExploration: true };
+  },
+
+  async updateFogExploration(exploration, explored) {
+    if (!exploration) return;
+    const updateData = { explored };
+    if (exploration.document?.update) {
+      await exploration.document.update(updateData, { diff: false });
+      return;
+    }
+    if (exploration.update) {
+      try {
+        await exploration.update(updateData, { diff: false });
+        return;
+      } catch (err) {
+        const id = exploration.id ?? exploration._id ?? exploration.document?._id;
+        if (id && canvas?.scene?.updateEmbeddedDocuments) {
+          await canvas.scene.updateEmbeddedDocuments("SceneExploration", [{ _id: id, explored }], { diff: false });
+          return;
+        }
+        if (id && exploration.constructor?.updateDocuments) {
+          await exploration.constructor.updateDocuments([{ _id: id, explored }], { diff: false });
+          return;
+        }
+        console.warn("IndyRoute preview: fog restore failed", err);
+        return;
+      }
+    }
+    const id = exploration.id ?? exploration._id ?? exploration.document?._id;
+    if (id && canvas?.scene?.updateEmbeddedDocuments) {
+      console.log("IndyRoute preview: updating exploration via scene.updateEmbeddedDocuments", { id });
+      await canvas.scene.updateEmbeddedDocuments("SceneExploration", [{ _id: id, explored }], { diff: false });
+    }
+  },
+
+  async restoreFogExploration(snapshot) {
+    if (!snapshot) return;
+    const exploration = snapshot.exploration ?? canvas?.fog?.exploration ?? null;
+    if (!snapshot.hadExploration) {
+      if (exploration) {
+        await this.updateFogExploration(exploration, "");
+      } else if (canvas?.fog?.reset) {
+        canvas.fog.reset();
+      } else if (canvas?.fog?.clear) {
+        canvas.fog.clear();
+      }
+      canvas?.fog?.refresh?.();
+      canvas?.sight?.refresh?.();
+      return;
+    }
+    if (!exploration || snapshot.explored == null) return;
+    const explored = snapshot.explored;
+    await this.updateFogExploration(exploration, explored);
+    canvas?.fog?.refresh?.();
+    canvas?.sight?.refresh?.();
   },
 
   moveTokenMarker(tokenDoc, x, y) {
@@ -281,7 +391,7 @@ export const IndyRouteRenderer = {
       Hooks.once("canvasReady", () => this.render(payload));
       return;
     }
-    const { sceneId, path, settings, startTime, lingerMs, routeId, labelText } = payload ?? {};
+    const { sceneId, path, settings, startTime, lingerMs, routeId, labelText, preview } = payload ?? {};
     if (game.scenes.current?.id !== sceneId) return;
     if (!Array.isArray(path) || path.length < 2) return;
 
@@ -317,6 +427,7 @@ export const IndyRouteRenderer = {
       if (labelShown) return;
       labelShown = true;
       labelRenderer.drawLabel(container, path, settings, labelText, { initialAlpha: 0, spanInfo: labelSpanInfo }).then((result) => {
+        console.log("checking label fade");
         const display = result?.display;
         if (!display || display.destroyed || container.destroyed) return;
         const labelLen = Number.isFinite(result?.length)
@@ -354,6 +465,43 @@ export const IndyRouteRenderer = {
       join: PIXI.LINE_JOIN.ROUND
     });
 
+    const isPreview = preview === true;
+    const restoreState = isPreview
+      ? {
+        tokenDoc: null,
+        tokenSource: null,
+        tokenStart: null,
+        fogSnapshot: null,
+        previewEnded: false,
+        prompted: false
+      }
+      : null;
+    const maybePromptRestore = async () => {
+      if (!restoreState || restoreState.prompted) return;
+      if (restoreState.tokenSource !== "token" || !restoreState.tokenDoc || !restoreState.tokenStart) return;
+      restoreState.prompted = true;
+      const dialogApi = foundry.applications?.api?.DialogV2 ?? Dialog;
+      const confirmed = await dialogApi.confirm({
+        title: "Restore Preview",
+        content: "<p>Restore the token's original position and fog of war?</p>"
+      });
+      if (!confirmed) return;
+      const tokenDoc = restoreState.tokenDoc;
+      const { x, y } = restoreState.tokenStart;
+      const tokenObj = tokenDoc?.object ?? tokenDoc?._object;
+      if (tokenObj?.setPosition) {
+        tokenObj.setPosition({ x, y });
+      } else if (tokenObj) {
+        tokenObj.x = x;
+        tokenObj.y = y;
+        tokenObj.refresh?.();
+      }
+      if (game.user.isGM && tokenDoc?.update) {
+        await tokenDoc.update({ x, y }, { animate: false });
+      }
+      await this.restoreFogExploration(restoreState.fogSnapshot);
+    };
+
     const marker = { tokenDoc: null, lastDocUpdate: 0, snapReady: false };
     const snapTokenToStart = () => {
       if (!marker.tokenDoc) return false;
@@ -365,8 +513,15 @@ export const IndyRouteRenderer = {
       return true;
     };
     if (settings.dotTokenUuid) {
-      this.resolveRouteToken(settings.dotTokenUuid).then((tokenDoc) => {
-        marker.tokenDoc = tokenDoc;
+      this.resolveRouteTokenInfo(settings.dotTokenUuid).then((info) => {
+        marker.tokenDoc = info.tokenDoc;
+        if (restoreState && info.tokenDoc && info.sourceType === "token") {
+          restoreState.tokenDoc = info.tokenDoc;
+          restoreState.tokenSource = info.sourceType;
+          restoreState.tokenStart = { x: info.tokenDoc.x, y: info.tokenDoc.y };
+          restoreState.fogSnapshot = this.snapshotFogExploration();
+          if (restoreState.previewEnded) maybePromptRestore();
+        }
         if (marker.snapReady) snapTokenToStart();
       });
     }
@@ -441,6 +596,10 @@ export const IndyRouteRenderer = {
           const i = root.containers.findIndex((e) => (e?.container ?? e) === container);
           if (i >= 0) root.containers.splice(i, 1);
         }, lingerMs);
+      }
+      if (restoreState) {
+        restoreState.previewEnded = true;
+        maybePromptRestore();
       }
     };
 
@@ -550,7 +709,7 @@ export const IndyRouteRenderer = {
     }
   },
 
-  renderStatic(path, settings, routeId, labelText) {
+  renderStatic(path, settings, routeId, labelText, renderOptions = {}) {
     if (!canvas?.ready) return;
     if (!Array.isArray(path) || path.length < 2) return;
     this.clearPreview();
@@ -578,7 +737,9 @@ export const IndyRouteRenderer = {
     dot.clear();
     const end = path[path.length - 1];
     this.drawEndX(container, end.x, end.y, settings, settings.lineWidth * 2);
-    labelRenderer.drawLabel(container, path, settings, labelText);
+    labelRenderer.drawLabel(container, path, settings, labelText, {
+      forceHighQuality: renderOptions.forceHighQuality
+    });
   },
 
   async persistRouteToTile(path, settings, { includeEndX = true, labelText = "" } = {}) {
@@ -646,7 +807,8 @@ export const IndyRouteRenderer = {
       tileY = baseY + bounds.y - extraPad;
     }
 
-    const renderTexture = PIXI.RenderTexture.create({ width: renderWidth, height: renderHeight });
+    const resolution = Number.isFinite(renderer.resolution) ? renderer.resolution : (PIXI.settings?.RESOLUTION ?? 1);
+    const renderTexture = PIXI.RenderTexture.create({ width: renderWidth, height: renderHeight, resolution });
     renderer.render(container, { renderTexture, clear: true });
     const extractCanvas = renderer.extract.canvas(renderTexture);
     renderTexture.destroy(true);
@@ -657,17 +819,18 @@ export const IndyRouteRenderer = {
     const folder = "indy-route";
     const fileName = `indy-route-${foundry.utils.randomID()}.png`;
     try {
+      const picker = foundry?.applications?.apps?.FilePicker?.implementation ?? FilePicker;
       if (foundry.utils?.ImageHelper?.uploadBase64) {
-        await FilePicker.createDirectory("data", folder).catch(() => {});
+        await picker.createDirectory("data", folder).catch(() => {});
         const dataUrl = extractCanvas.toDataURL("image/png");
         const upload = await foundry.utils.ImageHelper.uploadBase64(dataUrl, { folder, filename: fileName });
         textureSrc = upload?.path ?? upload ?? textureSrc;
-      } else if (FilePicker?.upload) {
-        await FilePicker.createDirectory("data", folder).catch(() => {});
+      } else if (picker?.upload) {
+        await picker.createDirectory("data", folder).catch(() => {});
         const blob = await new Promise((resolve) => extractCanvas.toBlob(resolve, "image/png"));
         if (!blob) throw new Error("Failed to create PNG blob.");
         const file = new File([blob], fileName, { type: blob.type || "image/png" });
-        const upload = await FilePicker.upload("data", folder, file, {});
+        const upload = await picker.upload("data", folder, file, {});
         textureSrc = upload?.path ?? upload ?? textureSrc;
       }
     } catch {

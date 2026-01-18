@@ -15,7 +15,7 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
   static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
     id: "indy-route-manager",
     window: { title: "Indy Route Manager", resizable: true },
-    position: { width: 540, height: 500 },
+    position: { width: 580, height: 500 },
     classes: ["indy-route", "indy-route-manager"]
   }, { inplace: false });
 
@@ -27,6 +27,9 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
   constructor(options = {}) {
     super(options);
     this.selectedId = null;
+    this._draggedRouteId = null;
+    this._dragOverTarget = null;
+    this._draggingItem = null;
   }
 
   _getTravelModeData(mode) {
@@ -305,6 +308,88 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       this._renameRoute(rename.dataset.routeId, rename.value);
     };
     content?.addEventListener("change", this._renameHandler, true);
+
+
+    if (this._routeDragStartHandler && content?.removeEventListener) {
+      content.removeEventListener("dragstart", this._routeDragStartHandler, true);
+    }
+    this._routeDragStartHandler = (event) => {
+      const handle = event.target?.closest?.("[data-drag-handle]");
+      if (!handle) return;
+      const item = handle.closest?.(".route-item[data-route-id]");
+      if (!item) return;
+      const routeId = item.dataset.routeId;
+      if (!routeId) return;
+      this._draggedRouteId = routeId;
+      this._draggingItem = item;
+      item.classList.add("dragging");
+      event.dataTransfer?.setData("text/plain", routeId);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    };
+    content?.addEventListener("dragstart", this._routeDragStartHandler, true);
+
+    if (this._routeDragEndHandler && content?.removeEventListener) {
+      content.removeEventListener("dragend", this._routeDragEndHandler, true);
+    }
+    this._routeDragEndHandler = () => {
+      this._clearRouteDragState();
+    };
+    content?.addEventListener("dragend", this._routeDragEndHandler, true);
+
+    if (this._routeDragOverHandler && content?.removeEventListener) {
+      content.removeEventListener("dragover", this._routeDragOverHandler, true);
+    }
+    this._routeDragOverHandler = (event) => {
+      if (!this._draggedRouteId) return;
+      if (event.target?.closest?.("input, textarea, select")) {
+        event.stopPropagation();
+        return;
+      }
+      const item = event.target?.closest?.(".route-item[data-route-id]");
+      if (!item) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      this._setDragOverTarget(item);
+    };
+    content?.addEventListener("dragover", this._routeDragOverHandler, true);
+
+    if (this._routeDragLeaveHandler && content?.removeEventListener) {
+      content.removeEventListener("dragleave", this._routeDragLeaveHandler, true);
+    }
+    this._routeDragLeaveHandler = (event) => {
+      if (!this._draggedRouteId) return;
+      const item = event.target?.closest?.(".route-item[data-route-id]");
+      if (!item) return;
+      const related = event.relatedTarget;
+      if (related && item.contains(related)) return;
+      if (this._dragOverTarget === item) this._setDragOverTarget(null);
+    };
+    content?.addEventListener("dragleave", this._routeDragLeaveHandler, true);
+
+    if (this._routeDropHandler && content?.removeEventListener) {
+      content.removeEventListener("drop", this._routeDropHandler, true);
+    }
+    this._routeDropHandler = async (event) => {
+      const item = event.target?.closest?.(".route-item[data-route-id]");
+      if (!item || !this._draggedRouteId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this._setDragOverTarget(null);
+      const dropId = item.dataset.routeId;
+      if (!dropId) return;
+      const routes = getSceneRoutes();
+      const draggedIndex = routes.findIndex((route) => route.id === this._draggedRouteId);
+      if (draggedIndex === -1) return;
+      const [moved] = routes.splice(draggedIndex, 1);
+      const targetIndex = routes.findIndex((route) => route.id === dropId);
+      if (targetIndex === -1) return;
+      routes.splice(targetIndex, 0, moved);
+      await setSceneRoutes(routes);
+      this.selectedId = moved.id;
+      this._clearRouteDragState();
+      this.render(true);
+    };
+    content?.addEventListener("drop", this._routeDropHandler, true);
   }
 
   async close(options = {}) {
@@ -381,7 +466,8 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       startTime: Date.now(),
       lingerMs: built.settings.lingerMs,
       routeId,
-      labelText: route.name
+      labelText: route.name,
+      preview: true
     };
     IndyRouteRenderer.render(payload);
   }
@@ -438,6 +524,23 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       IndyRouteRenderer.clearPreview();
     }
     this.render(true);
+  }
+
+  _setDragOverTarget(target) {
+    if (this._dragOverTarget && this._dragOverTarget !== target) {
+      this._dragOverTarget.classList.remove("drag-over");
+    }
+    this._dragOverTarget = target;
+    if (target) target.classList.add("drag-over");
+  }
+
+  _clearRouteDragState() {
+    if (this._draggingItem) {
+      this._draggingItem.classList.remove("dragging");
+      this._draggingItem = null;
+    }
+    this._setDragOverTarget(null);
+    this._draggedRouteId = null;
   }
 
   async _renameRoute(routeId, name) {

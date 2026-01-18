@@ -114,7 +114,7 @@ export function applyMapScaling(settings, sizeOverride) {
     dotRadius: Math.max(1, n * 1.3),
     drawSpeed: Math.max(1, n * 25),
     sampleStepPx: Math.max(1, n),
-    labelFontSize: Math.max(8, n * 3.8)
+    labelFontSize: Math.min(200, Math.max(8, n * 3.8))
   };
 }
 
@@ -179,7 +179,7 @@ export function normalizeSettings(s) {
     dashLength: Number.isFinite(dash) && dash > 0 ? dash : null,
     gapLength: Number.isFinite(gap) && gap > 0 ? gap : null,
     dotRadius: num(s.dotRadius),
-    labelFontSize: num(s.labelFontSize),
+    labelFontSize: Number.isFinite(num(s.labelFontSize)) ? Math.min(200, num(s.labelFontSize)) : num(s.labelFontSize),
     labelOffset: num(s.labelOffset),
     labelPosition: num(s.labelPosition),
     drawSpeed: num(s.drawSpeed),
