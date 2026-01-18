@@ -150,6 +150,11 @@ const route = api.getRouteByName("Route 1");
 api.playRoute(route?.id);
 ```
 
+```js
+// api help is available
+api.help();
+```
+
 ### Draw and play a route immediately
 ```js
 api.drawRoute({
