@@ -431,10 +431,6 @@ export const IndyRouteRenderer = {
     const entry = { container, routeId: routeId ?? null };
     root.containers.push(entry);
 
-    // Register active route state for pause/resume tracking
-    const activeState = { paused: false, pausedAt: null, pausedMs: 0 };
-    if (routeId) root.activeRoutes.set(routeId, activeState);
-
     let totalLen = 0;
     for (let i = 0; i < path.length - 1; i++) totalLen += this.distance(path[i], path[i + 1]);
     const duration = Math.max(0.05, totalLen / settings.drawSpeed);
@@ -446,10 +442,39 @@ export const IndyRouteRenderer = {
     const introMs = canAnimateCamera
       ? (Number.isFinite(settings.introMs) ? settings.introMs : DEFAULTS.introMs)
       : 0;
-    const pauseMs = canAnimateCamera
+    const pauseMsInit = canAnimateCamera
       ? (Number.isFinite(settings.pauseMs) ? settings.pauseMs : DEFAULTS.pauseMs)
       : 0;
-    const startTimeAdjusted = startTime + introMs + pauseMs;
+    const startTimeAdjusted = startTime + introMs + pauseMsInit;
+
+    // Register active route state for pause/resume tracking
+    const activeState = {
+      routeId: routeId ?? null,
+      labelText: labelText ?? "",
+      startTime,
+      startTimeAdjusted,
+      durationSec: duration,
+      totalLen,
+      settings,
+      paused: false,
+      pausedAt: null,
+      pausedMs: 0,
+      getElapsedSec: () => {
+        let elapsed = Math.max(0, (Date.now() - activeState.startTimeAdjusted) / 1000);
+        if (activeState.pausedMs) elapsed -= activeState.pausedMs / 1000;
+        if (activeState.paused && activeState.pausedAt) {
+          elapsed -= (Date.now() - activeState.pausedAt) / 1000;
+        }
+        return Math.max(0, Math.min(elapsed, activeState.durationSec));
+      },
+      getRemainingMs: () => {
+        return Math.max(0, (activeState.durationSec - activeState.getElapsedSec()) * 1000);
+      },
+      getProgress: () => {
+        return activeState.durationSec > 0 ? activeState.getElapsedSec() / activeState.durationSec : 1;
+      }
+    };
+    if (routeId) root.activeRoutes.set(routeId, activeState);
     const labelPosition = Number.isFinite(settings.labelPosition) ? settings.labelPosition : 50;
     const labelSpanInfo = settings.labelFollowPath
       ? labelRenderer.computeLabelSpanInfo(path, settings, labelText)

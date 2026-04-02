@@ -311,6 +311,25 @@ Hooks.once("ready", () => {
     isRouteActive(routeId) {
       return IndyRouteRenderer.isRouteActive(routeId);
     },
+    getActiveRoute(routeId) {
+      if (!routeId) return null;
+      const root = window.__indyRouteBroadcast;
+      const state = root?.activeRoutes?.get(routeId);
+      if (!state) return null;
+      return {
+        routeId: state.routeId,
+        labelText: state.labelText,
+        isActive: true,
+        isPaused: state.paused,
+        durationSec: state.durationSec,
+        elapsedSec: state.getElapsedSec(),
+        remainingSec: state.getRemainingMs() / 1000,
+        progress: state.getProgress(),
+        pausedMs: state.pausedMs,
+        startTime: state.startTime,
+        totalLen: state.totalLen
+      };
+    },
     clearAllRoutes() {
       IndyRouteTool.clearAllBroadcast();
     },
@@ -368,6 +387,10 @@ Hooks.once("ready", () => {
         isRouteActive: {
           description: "Check whether a route is currently playing.",
           signature: "isRouteActive(routeId)"
+        },
+        getActiveRoute: {
+          description: "Get active route data including remaining time, elapsed time, and progress.",
+          signature: "getActiveRoute(routeId)"
         },
         clearAllRoutes: {
           description: "Clear all routes locally and for other clients.",
