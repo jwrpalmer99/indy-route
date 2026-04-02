@@ -30,6 +30,9 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
     this._draggedRouteId = null;
     this._dragOverTarget = null;
     this._draggingItem = null;
+    this._playbackEndedHook = Hooks.on("indyRoutePlaybackEnded", () => {
+      if (this.rendered) this.render(true);
+    });
   }
 
   _getTravelModeData(mode) {
@@ -198,7 +201,13 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
   async _prepareContext() {
     const routes = getSceneRoutes().map((route) => ({
       ...route,
-      lengthLabel: this._getRouteLengthLabel(route)
+      lengthLabel: this._getRouteLengthLabel(route),
+      isActive: IndyRouteRenderer.isRouteActive(route.id),
+      isPaused: (() => {
+        const root = window.__indyRouteBroadcast;
+        const state = root?.activeRoutes?.get?.(route.id);
+        return state ? state.paused : false;
+      })()
     }));
     return {
       routes,
@@ -246,6 +255,13 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
         event.preventDefault();
         event.stopPropagation();
         this._playRoute(play.dataset.routeId);
+        return;
+      }
+      const togglePause = event.target?.closest?.("[data-action='toggle-pause-route']");
+      if (togglePause) {
+        event.preventDefault();
+        event.stopPropagation();
+        this._togglePauseRoute(togglePause.dataset.routeId);
         return;
       }
       const preview = event.target?.closest?.("[data-action='preview-route']");
@@ -394,6 +410,9 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
 
   async close(options = {}) {
     IndyRouteRenderer.clearPreview();
+    if (this._playbackEndedHook !== undefined) {
+      Hooks.off("indyRoutePlaybackEnded", this._playbackEndedHook);
+    }
     return super.close(options);
   }
 
@@ -452,6 +471,23 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
     };
     game.socket.emit(CHANNEL, { type: "INDY_ROUTE", payload });
     IndyRouteRenderer.render(payload);
+    this.render(true);
+  }
+
+  _togglePauseRoute(routeId) {
+    if (!routeId) return;
+    const isActive = IndyRouteRenderer.isRouteActive(routeId);
+    if (!isActive) return;
+    const root = window.__indyRouteBroadcast;
+    const state = root?.activeRoutes?.get?.(routeId);
+    if (state?.paused) {
+      IndyRouteRenderer.resumeRoute(routeId);
+      game.socket.emit(CHANNEL, { type: "INDY_RESUME_ROUTE", payload: { routeId } });
+    } else {
+      IndyRouteRenderer.pauseRoute(routeId);
+      game.socket.emit(CHANNEL, { type: "INDY_PAUSE_ROUTE", payload: { routeId } });
+    }
+    this.render(true);
   }
 
   _previewPlayback(routeId) {

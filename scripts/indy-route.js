@@ -191,6 +191,8 @@ Hooks.once("ready", () => {
     if (data.type === "INDY_ROUTE") IndyRouteRenderer.render(data.payload);
     if (data.type === "INDY_CLEAR_ROUTE") IndyRouteRenderer.clearRoute(data.payload?.routeId);
     if (data.type === "INDY_CLEAR") IndyRouteRenderer.clearLocal();
+    if (data.type === "INDY_PAUSE_ROUTE") IndyRouteRenderer.pauseRoute(data.payload?.routeId);
+    if (data.type === "INDY_RESUME_ROUTE") IndyRouteRenderer.resumeRoute(data.payload?.routeId);
   });
 
   const api = {
@@ -294,6 +296,21 @@ Hooks.once("ready", () => {
       IndyRouteRenderer.clearRoute(routeId);
       game.socket.emit(CHANNEL, { type: "INDY_CLEAR_ROUTE", payload: { routeId } });
     },
+    pauseRoute(routeId) {
+      if (!routeId) return false;
+      const paused = IndyRouteRenderer.pauseRoute(routeId);
+      if (paused) game.socket.emit(CHANNEL, { type: "INDY_PAUSE_ROUTE", payload: { routeId } });
+      return paused;
+    },
+    resumeRoute(routeId) {
+      if (!routeId) return false;
+      const resumed = IndyRouteRenderer.resumeRoute(routeId);
+      if (resumed) game.socket.emit(CHANNEL, { type: "INDY_RESUME_ROUTE", payload: { routeId } });
+      return resumed;
+    },
+    isRouteActive(routeId) {
+      return IndyRouteRenderer.isRouteActive(routeId);
+    },
     clearAllRoutes() {
       IndyRouteTool.clearAllBroadcast();
     },
@@ -339,6 +356,18 @@ Hooks.once("ready", () => {
         clearRoute: {
           description: "Clear a route by id locally and for other clients.",
           signature: "clearRoute(routeId)"
+        },
+        pauseRoute: {
+          description: "Pause an actively playing route for all clients.",
+          signature: "pauseRoute(routeId)"
+        },
+        resumeRoute: {
+          description: "Resume a paused route for all clients.",
+          signature: "resumeRoute(routeId)"
+        },
+        isRouteActive: {
+          description: "Check whether a route is currently playing.",
+          signature: "isRouteActive(routeId)"
         },
         clearAllRoutes: {
           description: "Clear all routes locally and for other clients.",

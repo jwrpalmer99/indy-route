@@ -10,8 +10,37 @@ const labelRenderer = new IndyRouteLabelRenderer();
 
 export const IndyRouteRenderer = {
   ensureRoot() {
-    window.__indyRouteBroadcast ??= { containers: [], preview: null, previewRouteId: null };
+    window.__indyRouteBroadcast ??= { containers: [], preview: null, previewRouteId: null, activeRoutes: new Map() };
+    if (!window.__indyRouteBroadcast.activeRoutes) window.__indyRouteBroadcast.activeRoutes = new Map();
     return window.__indyRouteBroadcast;
+  },
+
+  isRouteActive(routeId) {
+    if (!routeId) return false;
+    const root = this.ensureRoot();
+    return root.activeRoutes.has(routeId);
+  },
+
+  pauseRoute(routeId) {
+    if (!routeId) return false;
+    const root = this.ensureRoot();
+    const state = root.activeRoutes.get(routeId);
+    if (!state || state.paused) return false;
+    state.paused = true;
+    state.pausedAt = Date.now();
+    return true;
+  },
+
+  resumeRoute(routeId) {
+    if (!routeId) return false;
+    const root = this.ensureRoot();
+    const state = root.activeRoutes.get(routeId);
+    if (!state || !state.paused) return false;
+    state.paused = false;
+    const pausedDuration = Date.now() - (state.pausedAt ?? Date.now());
+    state.pausedMs = (state.pausedMs ?? 0) + pausedDuration;
+    state.pausedAt = null;
+    return true;
   },
 
   clearLocal() {
@@ -21,6 +50,7 @@ export const IndyRouteRenderer = {
       try { c.destroy({ children: true }); } catch {}
     }
     root.containers.length = 0;
+    root.activeRoutes.clear();
     this.clearPreview();
   },
 
@@ -34,6 +64,7 @@ export const IndyRouteRenderer = {
       try { c.destroy({ children: true }); } catch {}
       root.containers.splice(i, 1);
     }
+    root.activeRoutes.delete(routeId);
     if (root.preview && root.previewRouteId === routeId) {
       try { root.preview.destroy({ children: true }); } catch {}
       root.preview = null;
@@ -400,6 +431,10 @@ export const IndyRouteRenderer = {
     const entry = { container, routeId: routeId ?? null };
     root.containers.push(entry);
 
+    // Register active route state for pause/resume tracking
+    const activeState = { paused: false, pausedAt: null, pausedMs: 0 };
+    if (routeId) root.activeRoutes.set(routeId, activeState);
+
     let totalLen = 0;
     for (let i = 0; i < path.length - 1; i++) totalLen += this.distance(path[i], path[i + 1]);
     const duration = Math.max(0.05, totalLen / settings.drawSpeed);
@@ -589,6 +624,10 @@ export const IndyRouteRenderer = {
       this.drawEndX(container, end.x, end.y, settings, settings.lineWidth * 2);
       if (!labelShown) maybeShowLabel();
 
+      // Remove from active routes tracking
+      if (routeId) root.activeRoutes.delete(routeId);
+      Hooks.callAll("indyRoutePlaybackEnded", { routeId });
+
       // lingerMs: >0 remove after ms; otherwise persist
       if (typeof lingerMs === "number" && lingerMs > 0) {
         setTimeout(() => {
@@ -654,6 +693,9 @@ export const IndyRouteRenderer = {
           ticker.remove(onTick);
           return;
         }
+        // Skip tick if paused
+        if (routeId && activeState.paused) return;
+
         elapsed += delta / 60;
 
         const t = Math.min(1, elapsed / duration);
