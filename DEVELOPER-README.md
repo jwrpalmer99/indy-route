@@ -96,47 +96,82 @@ traveler/
 
 ## Architecture Overview
 
+### GM Route Playback
+
+```mermaid
+sequenceDiagram
+    participant Tool as IndyRouteTool (GM)
+    participant Mgr as IndyRouteManager (GM)
+    participant Socket as game.socket
+    participant All as All Clients
+
+    Tool->>Tool: Left-click to place points
+    Tool->>Tool: createRouteRecord()
+    Mgr->>Mgr: buildRoutePayload(routeId)
+    Mgr->>Socket: emit BROADCAST with payload + startTime
+    Socket-->>All: on(CHANNEL) receive payload
+    All->>All: IndyRouteRenderer.render()
+    loop PIXI Ticker every frame
+        All->>All: draw line segments
+        All->>All: updateMarker dot or token
+        All->>All: GM only checkZones for encounters
+        All->>All: GM only advanceClock on finish
+    end
 ```
-┌─────────────────────────────────────────────────────────┐
-│  GM client                                              │
-│                                                         │
-│  IndyRouteTool ──draw──▶ createRouteRecord              │
-│                                  │                      │
-│  IndyRouteManager ──play──▶ buildRoutePayload           │
-│                                  │                      │
-│                          game.socket.emit ─────────────────┐
-│                          IndyRouteRenderer.render()       │
-└─────────────────────────────────────────────────────────┘
-                                                           │ socket
-┌─────────────────────────────────────────────────────────┐ │
-│  All clients (GM + players)                             │◀┘
-│                                                         │
-│  game.socket.on(CHANNEL) ──▶ IndyRouteRenderer.render() │
-│                                                         │
-│  PIXI Ticker loop:                                      │
-│    draw dashed segments                                 │
-│    updateMarker (dot / token)                           │
-│    encounter zone check (GM only)                       │
-│    advanceClock on finish (GM only)                     │
-└─────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────┐
-│  Player client (when player routing enabled)            │
-│                                                         │
-│  PlayerRouteTool ──A*──▶ PlayerSpeedDialog              │
-│                                  │                      │
-│                          socket emit PLAYER_PROPOSE     │
-│                            or PLAYER_IMMEDIATE          │
-└─────────────────────────────────────────────────────────┘
+### Player Proposal Flow
 
-┌─────────────────────────────────────────────────────────┐
-│  GM client (approval mode)                              │
-│                                                         │
-│  ProposalStore ◀── socket PLAYER_PROPOSE                │
-│  IndyRouteManager shows proposal list                   │
-│  GM clicks Approve ──▶ socket PLAYER_APPROVE ──▶ render │
-│  GM clicks Reject  ──▶ socket PLAYER_REJECT             │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant Player as Player Client
+    participant GM as GM Client
+    participant All as All Clients
+
+    Player->>Player: click destination on canvas
+    Player->>Player: A* pathfind respecting walls and fog
+    Player->>Player: PlayerSpeedDialog if setting enabled
+    alt Immediate mode
+        Player->>All: socket PLAYER_IMMEDIATE payload
+        All->>All: IndyRouteRenderer.render()
+    else Approval mode
+        Player->>GM: socket PLAYER_PROPOSE payload
+        GM->>GM: ProposalStore.add proposal
+        GM->>GM: RouteManager renders proposal list
+        alt GM approves
+            GM->>All: socket PLAYER_APPROVE payload
+            All->>All: IndyRouteRenderer.render()
+        else GM rejects
+            GM->>Player: socket PLAYER_REJECT proposalId
+            Player->>Player: ui.notifications.warn shown
+        end
+    end
+```
+
+### Encounter Zone Resolution
+
+```mermaid
+sequenceDiagram
+    participant Ticker as PIXI Ticker (GM)
+    participant Enc as encounters.js
+    participant Dialog as EncounterDialog (GM)
+    participant Foundry as Foundry Documents
+
+    Ticker->>Enc: checkZones tPrev t encounters
+    Enc-->>Ticker: zone that fired or null
+    Ticker->>Ticker: pauseRoute animating frozen on GM
+    Ticker->>Enc: handleZoneFired zone travelModeId
+    Enc->>Enc: roll RollableTable
+    Enc->>Dialog: open with result Accept Regenerate Decline
+    alt GM accepts
+        Dialog->>Foundry: create ChatMessage
+        Dialog->>Foundry: create JournalNote pin on canvas
+        Dialog->>Foundry: spawn Actor token at zone position
+        Dialog->>Ticker: resumeRoute animation continues
+    else GM regenerates
+        Dialog->>Enc: re-roll table update dialog in place
+    else GM declines
+        Dialog->>Ticker: resumeRoute animation continues
+    end
 ```
 
 ---
