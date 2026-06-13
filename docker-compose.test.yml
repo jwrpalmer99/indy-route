@@ -1,0 +1,60 @@
+##
+## docker-compose.test.yml — spin up a Foundry VTT v14 instance for
+## integration testing.  Run with:
+##
+##   FOUNDRY_LICENSE_KEY=...  \
+##   FOUNDRY_ADMIN_KEY=...    \
+##   FOUNDRY_USERNAME=...     \
+##   FOUNDRY_PASSWORD=...     \
+##   docker-compose -f docker-compose.test.yml up -d
+##
+## Then:  npm run foundry:wait && npm run test:integration
+##
+## Teardown:  docker-compose -f docker-compose.test.yml down -v
+##
+
+version: "3.8"
+
+services:
+  foundry:
+    ## felddy/foundryvtt handles license activation and Foundry download
+    ## automatically.  See https://github.com/felddy/foundryvtt-docker
+    image: felddy/foundryvtt:14
+
+    environment:
+      ## ── Credentials ──────────────────────────────────────────────────
+      ## Store all four values as GitHub Secrets (or local .env file).
+      ## Never commit real values.
+      FOUNDRY_LICENSE_KEY:      "${FOUNDRY_LICENSE_KEY}"
+      FOUNDRY_ADMIN_KEY:        "${FOUNDRY_ADMIN_KEY}"
+      FOUNDRY_USERNAME:         "${FOUNDRY_USERNAME}"
+      FOUNDRY_PASSWORD:         "${FOUNDRY_PASSWORD}"
+
+      ## ── Boot options ─────────────────────────────────────────────────
+      ## Start directly into the CI test world on first boot
+      FOUNDRY_WORLD:            "traveler-ci"
+
+      ## Keep configuration between restarts (avoids re-activation)
+      CONTAINER_PRESERVE_CONFIG: "true"
+
+      ## Silence the update-check nag
+      FOUNDRY_RELEASE_CHANNEL:  "stable"
+
+    volumes:
+      ## Mount the module source directly so the live code is testable
+      ## without a build step.  Foundry reads from this path at startup.
+      - .:/home/foundry/resources/app/modules/traveler:ro
+
+      ## Mount the minimal test world
+      - ./tests/world:/home/foundry/data/worlds/traveler-ci
+
+    ports:
+      - "30000:30000"
+
+    ## Wait up to 3 minutes for Foundry to finish initialising
+    healthcheck:
+      test:         ["CMD", "curl", "-sf", "http://localhost:30000/api/status"]
+      interval:     10s
+      timeout:      5s
+      retries:      18
+      start_period: 90s

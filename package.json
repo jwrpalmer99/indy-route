@@ -1,0 +1,20 @@
+{
+  "name": "traveler",
+  "version": "2.0.0",
+  "description": "Foundry VTT travel-route module",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test":             "vitest run",
+    "test:watch":       "vitest",
+    "coverage":         "vitest run --coverage",
+    "test:integration": "node scripts/run-quench.js",
+    "foundry:wait":     "node scripts/foundry-wait.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "@vitest/coverage-v8": "^1.6.0",
+    "playwright": "^1.44.0",
+    "vitest": "^1.6.0"
+  }
+}

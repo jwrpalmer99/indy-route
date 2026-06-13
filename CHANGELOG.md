@@ -18,6 +18,27 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `5bd191a` — 2026-06-13 — Add v14 Scene Levels support (per-point elevation, level picker, token elevation during playback)
 - `f083f4f` — 2026-06-13 — Add `traveler.changeLevel` Region Behavior with roll-check dialog
 - `3e7e174` — 2026-06-13 — Add player pathfinding with A*, fog-of-war gating, and GM approval workflow
+- *(pending)* — 2026-06-13 — Add Vitest unit tests, Quench integration tests, Docker CI, and GitHub Actions workflow
+
+### Added — Testing Infrastructure
+- **`package.json`**: Dev dependencies for Vitest 1.x, Playwright 1.x, and `@vitest/coverage-v8`. Five npm scripts: `test`, `test:watch`, `coverage`, `test:integration`, `foundry:wait`.
+- **`vitest.config.js`**: Node environment, `tests/setup.js` for global stubs, V8 coverage with 70 % line/function thresholds.
+- **`tests/setup.js`**: Comprehensive Foundry VTT global mocks (`canvas`, `game`, `CONST`, `foundry`, `Hooks`, `ui`, `Roll`, `PIXI`, etc.) using `vi.stubGlobal` — no browser required for unit tests.
+- **`tests/unit/astar.test.js`**: 10 unit tests covering open-grid paths, wall avoidance, node-budget enforcement, custom `isPassable` filters, and edge cases (same cell, adjacent cell, null grid).
+- **`tests/unit/proposals.test.js`**: 10 unit tests for `ProposalStore` (add, get, remove, getAll, clear, duplicate-id overwrite, snapshot immutability).
+- **`tests/unit/change-level.test.js`**: 18 unit tests for `TravelerChangeLevelBehavior` helpers (`_checkPrerequisites` — status/item/combined requirements, invalid regex; `_resolveTargetElevation` — explicit, levelId, fallback null).
+- **`tests/unit/settings.test.js`**: 16 unit tests for `normalizeSettings`, `applyColorNumbers`, `applyMapScaling`, `PLAYER_ROUTE_MODE`, and `getPlayerRouteMode`.
+- **`tests/quench/fixtures.js`**: `SceneFixture.build()` programmatically creates a 1000×1000 scene with a gapped vertical wall, a stairs region, a cliff/check region, and a test token. `teardown()` deletes the scene. `WallFixture.createHorizontal()` for ad-hoc walls.
+- **`tests/quench/pathfinding.quench.js`**: Integration tests for A* on the real `canvas` (open grid, wall avoidance via gap, fully-walled destination, node-budget timing).
+- **`tests/quench/region-behavior.quench.js`**: Integration tests for `traveler.changeLevel` behaviors (prerequisite blocking, prerequisite pass, `_applyElevation` updating `TokenDocument.elevation`).
+- **`tests/quench/player-route.quench.js`**: Integration tests for the player-route workflow (ProposalStore round-trip with real UUIDs, MSG constant uniqueness, `IndyRouteRenderer.render` smoke test, proposal approve/reject cycle).
+- **`tests/quench/index.js`**: Registers all three Quench batches via `Hooks.once("quenchReady", ...)` and exports `registerAllSuites` for dynamic import.
+- **`tests/world/world.json`**: Minimal Foundry world manifest for the CI Docker container (`traveler-ci`, dnd5e system, `traveler` + `quench` modules). No scene data committed.
+- **`docker-compose.test.yml`**: Spins up `felddy/foundryvtt:14`, mounts module source and test world, exposes port 30000, health-checks `/api/status`.
+- **`scripts/foundry-wait.js`**: Polls `/api/status` every 5 s until Foundry is ready or times out (configurable via `FOUNDRY_WAIT_TIMEOUT`).
+- **`scripts/run-quench.js`**: Playwright headless driver — navigates to Foundry, joins as GM, calls `quench.runAll()`, collects pass/fail stats, exits 0 or 1 for CI.
+- **`.github/workflows/ci.yml`**: Two-job Actions workflow: `unit-tests` (Vitest + coverage artifact) and `integration-tests` (Docker + Playwright + Quench). Integration job skipped on fork PRs where secrets are unavailable.
+- **`docs/testing.plan.md`**: Plan document describing the full testing architecture, Vitest rationale, Quench overview, Docker setup, and CI environment guidance (GitHub Actions vs CircleCI).
 
 ### Added
 - `architecture.md` — full module documentation including Mermaid class, sequence, and data-flow diagrams.

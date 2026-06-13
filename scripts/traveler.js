@@ -467,3 +467,12 @@ Hooks.once("ready", () => {
   const module = game.modules?.get?.(MODULE_ID);
   if (module) module.api = api;
 });
+
+// ---------------------------------------------------------------------------
+// Quench integration tests — registered only when the quench module is active
+// ---------------------------------------------------------------------------
+Hooks.once("quenchReady", (quench) => {
+  import("../tests/quench/index.js")
+    .then(({ registerAllSuites }) => registerAllSuites(quench))
+    .catch((err) => console.error("Traveler | Failed to load Quench suites:", err));
+});
