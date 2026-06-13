@@ -22,6 +22,26 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - *(pending)* — 2026-06-13 — Fix `applyColorNumbers` for hex strings without leading `#`; add `.gitignore` and `.vscode/settings.json`
 - `55e7ca5` — 2026-06-13 — Add Encounter System (encounter zones on routes, GM confirmation dialog, Rollable Table integration)
 - `15b545e` — 2026-06-13 — Fix `checkZones` boundary condition for zones placed at t=0.0
+- `3cc96d8` — 2026-06-13 — Add world clock advance, player speed dialog, encounter speed scaling, per-scene distance override
+
+### Added — World Clock, Player Speed & Scene Distance
+
+- **`scripts/clock.js`**: `computeTravelSeconds(totalPx, gridSizePx, distancePerSquare, speedMph)` — pure math; `formatTravelDuration(seconds)` — human-readable label; `advanceClock(totalPx, modeId)` — calls `game.time.advance()` on route finish (GM only, respects `worldClockEnabled` setting). Simple Calendar and Seasons & Stars respond automatically.
+- **`scripts/settings.js`**: `DEFAULT_TRAVEL_MODES` gains `encounterMult` per mode (0.4–1.6). New helpers: `getSceneDistanceConfig(scene)` — returns effective distance/square (flag override or Foundry native); `getTravelModeById(id)`.
+- **`scripts/traveler.js`**: Two new module settings: `worldClockEnabled` (Boolean, default `false`) and `playerSpeedPrompt` (Boolean, default `true`). Clock helper exposed on `globalThis.__travelerClock`. Pre-loads `player-speed-dialog.hbs` and `scene-settings.hbs` templates.
+- **`scripts/renderer.js`**: `finish()` callback calls `advanceClock(totalLen, travelModeId)` on the GM client.
+- **`scripts/apps/player-speed-dialog.js`**: `PlayerSpeedDialog` — awaitable `ApplicationV2` modal showing the travel mode list as radio buttons before a player submits a route proposal. Returns the selected mode id or `null` on cancel. Also exports `scaleDrawSpeed(baseDraw, speedMph, baseRef)` for adjusting animation speed proportionally.
+- **`templates/player-speed-dialog.hbs`**: Compact speed-picker dialog.
+- **`scripts/tool-player.js`**: Shows `PlayerSpeedDialog` when `playerSpeedPrompt` is enabled. Selected mode is stored as `proposal.travelModeId` / `proposal.travelModeLabel`. `drawSpeed` is scaled by the selected mode vs Walking Normal (3 mph). Speed label visible to GM in the approval panel.
+- **`templates/route-manager.hbs`**: Proposal rows now show the player's selected speed. "Scene Scale" toolbar button (map icon) opens the scene distance dialog.
+- **`scripts/apps/scene-settings.js`**: `SceneSettingsDialog` — GM dialog to set `distancePerSquare` and `units` as a scene flag override, independent of Foundry's combat grid distance. Accessible from the Route Manager toolbar.
+- **`templates/scene-settings.hbs`**: Scene distance override form.
+- **`scripts/apps/manager.js`**: `_getRouteLengthLabel` now reads `getSceneDistanceConfig()` so distance labels honour the scene override. `_openSceneSettings()` wired to the toolbar button.
+- **`scripts/encounters.js`**: `handleZoneFired` accepts `travelModeId`; effective encounter chance = `zone.chance × mode.encounterMult` (clamped 0–1).
+- **`scripts/renderer.js`**: Passes `payload.travelModeId` to `handleZoneFired`.
+- **`tests/unit/clock.test.js`**: 22 unit tests for `computeTravelSeconds` and `formatTravelDuration`.
+- **`tests/unit/player-speed.test.js`**: 20 unit tests for `scaleDrawSpeed`, `encounterMult` coverage, `getTravelModeById`, and encounter chance scaling math.
+- **`tests/quench/clock.quench.js`** + **`index.js`**: Integration tests for `advanceClock` (disabled/enabled), `getSceneDistanceConfig` with/without flag override.
 
 ### Added — Encounter System
 - **`scripts/encounters.js`**: `EncounterManager` — `createEncounterZone`, `checkZones`, `resetZoneTriggers`, `rollTable`, `buildFixedResult`, `importActor`, `spawnToken`, `createNote`, `createChatMessage`, `resolveEncounter`, `handleZoneFired`.
