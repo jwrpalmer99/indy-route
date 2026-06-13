@@ -16,9 +16,20 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `e0662db` — 2026-06-13 — Add architecture.md documentation
 - `c3df688` — 2026-06-13 — Uplift to Foundry v14; fork renamed from `indy-route` to `traveler`
 - `5bd191a` — 2026-06-13 — Add v14 Scene Levels support (per-point elevation, level picker, token elevation during playback)
+- `f083f4f` — 2026-06-13 — Add `traveler.changeLevel` Region Behavior with roll-check dialog
 
 ### Added
 - `architecture.md` — full module documentation including Mermaid class, sequence, and data-flow diagrams.
+
+### Added (Region Behavior — `traveler.changeLevel`)
+- **`TravelerChangeLevelBehavior`** (`scripts/behaviors/change-level.js`) — custom `RegionBehaviorType` registered as `traveler.changeLevel`.  GMs configure it via the standard Foundry RegionConfig panel.  Fields: `mode`, `targetLevelId`, `targetElevation`, `requiredStatusEffect`, `requiredItemPattern`, `requiresCheck`, `checkLabel`, `checkFormula`, `checkDC`, `failureDamage`, `allowRetry`.
+- **Five traversal modes** — `stairs` (automatic), `ladder` (interact), `cliff` (check required), `drop` (fall), `fly-only`.
+- **Prerequisite gate** — status-effect check (`actor.statuses.has`) and item-name regex (`actor.items`) evaluated before any roll; blocks movement with a `ui.notifications.warn` on failure.
+- **Roll-check dialog** (`scripts/behaviors/level-check-dialog.js`, `templates/level-check-dialog.hbs`) — awaitable `ApplicationV2` with "Attempt" (evaluates Roll formula, posts to chat) and "Give Up" (cancels movement) buttons.
+- **Retry loop** — when `allowRetry` is true and the roll fails, a `DialogV2.confirm` prompt lets the player try again; movement stays paused at the boundary until pass, cancel, or final failure.
+- **Failure damage** — if `failureDamage` is set, a damage roll is evaluated and posted to chat; applied via `actor.applyDamage(total)` (dnd5e), or a direct `system.attributes.hp.value` update, or a manual-apply warning as fallback.
+- **Elevation write on success** — `tokenDoc.update({ elevation })` called after `continueMovement` using `targetElevation` or the Scene Level's `elevation.bottom`.
+- **No socket work needed** — `TOKEN_MOVE_IN` with `event.user.isSelf` guard ensures the dialog runs on the correct player's client; all movement control calls are local.
 
 ### Added (v14 Scene Levels — breaks v13 compatibility)
 - **Per-point elevation capture** — each waypoint now records the `elevation.bottom` of `canvas.level` at click time. Routes drawn on multi-level scenes automatically carry elevation data across level transitions.
