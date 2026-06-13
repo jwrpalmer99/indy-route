@@ -319,6 +319,16 @@ Hooks.once("ready", () => {
       );
     }
 
+    // All clients: GM paused animation for an encounter dialog
+    if (data.type === MSG.ENCOUNTER_PAUSE) {
+      IndyRouteRenderer.pauseRoute(data.payload?.routeId);
+    }
+
+    // All clients: GM resumed animation after encounter dialog closed
+    if (data.type === MSG.ENCOUNTER_RESUME) {
+      IndyRouteRenderer.resumeRoute(data.payload?.routeId);
+    }
+
     // All clients: GM approved — play the route and remove from store
     if (data.type === MSG.PLAYER_APPROVE) {
       const proposal = data.payload;

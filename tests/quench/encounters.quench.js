@@ -16,9 +16,13 @@ import {
   checkZones,
   resetZoneTriggers,
   buildFixedResult,
+  broadcastEncounterPause,
+  broadcastEncounterResume,
   createNote,
   createChatMessage
 } from "../../scripts/encounters.js";
+import { CHANNEL, MSG } from "../../scripts/constants.js";
+import { IndyRouteRenderer } from "../../scripts/renderer.js";
 
 export function registerEncounterTests(quench) {
   quench.registerBatch(
@@ -110,6 +114,57 @@ export function registerEncounterTests(quench) {
           const result = buildFixedResult(zone);
           assert.ok(result);
           assert.equal(result.name, "Bandit Leader");
+        });
+      });
+
+      // ----------------------------------------------------------------
+      describe("broadcastEncounterPause / broadcastEncounterResume — socket wiring", () => {
+        it("broadcastEncounterPause emits ENCOUNTER_PAUSE on the module channel", () => {
+          const emitted = [];
+          const origEmit = game.socket.emit.bind(game.socket);
+          game.socket.emit = (ch, data, ...rest) => {
+            if (ch === CHANNEL) emitted.push(data);
+            return origEmit(ch, data, ...rest);
+          };
+
+          broadcastEncounterPause("test-route-1");
+
+          game.socket.emit = origEmit; // restore
+          assert.equal(emitted.length, 1, "should emit once");
+          assert.equal(emitted[0].type, MSG.ENCOUNTER_PAUSE, "type should be ENCOUNTER_PAUSE");
+          assert.equal(emitted[0].payload?.routeId, "test-route-1", "routeId should match");
+        });
+
+        it("broadcastEncounterResume emits ENCOUNTER_RESUME on the module channel", () => {
+          const emitted = [];
+          const origEmit = game.socket.emit.bind(game.socket);
+          game.socket.emit = (ch, data, ...rest) => {
+            if (ch === CHANNEL) emitted.push(data);
+            return origEmit(ch, data, ...rest);
+          };
+
+          broadcastEncounterResume("test-route-1");
+
+          game.socket.emit = origEmit;
+          assert.equal(emitted.length, 1, "should emit once");
+          assert.equal(emitted[0].type, MSG.ENCOUNTER_RESUME, "type should be ENCOUNTER_RESUME");
+          assert.equal(emitted[0].payload?.routeId, "test-route-1", "routeId should match");
+        });
+
+        it("renderer.pauseRoute flags the route as paused", () => {
+          // Inject a synthetic route entry into the renderer root
+          const root = IndyRouteRenderer.ensureRoot();
+          const fakeEntry = { routeId: "pause-test", encounterPaused: false };
+          root.containers.push(fakeEntry);
+
+          IndyRouteRenderer.pauseRoute("pause-test");
+          assert.ok(fakeEntry.encounterPaused, "entry should be paused");
+
+          IndyRouteRenderer.resumeRoute("pause-test");
+          assert.ok(!fakeEntry.encounterPaused, "entry should be resumed");
+
+          // Cleanup
+          root.containers.splice(root.containers.indexOf(fakeEntry), 1);
         });
       });
 

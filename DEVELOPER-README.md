@@ -153,25 +153,31 @@ sequenceDiagram
 sequenceDiagram
     participant Ticker as PIXI Ticker (GM)
     participant Enc as encounters.js
+    participant Socket as game.socket
+    participant Players as Player Clients
     participant Dialog as EncounterDialog (GM)
     participant Foundry as Foundry Documents
 
     Ticker->>Enc: checkZones tPrev t encounters
     Enc-->>Ticker: zone that fired or null
-    Ticker->>Ticker: pauseRoute animating frozen on GM
     Ticker->>Enc: handleZoneFired zone travelModeId
-    Enc->>Enc: roll RollableTable
+    Enc->>Enc: roll RollableTable or build fixed result
+    Enc->>Ticker: IndyRouteRenderer.pauseRoute (GM local)
+    Enc->>Socket: emit ENCOUNTER_PAUSE routeId
+    Socket-->>Players: on CHANNEL pause routeId
+    Players->>Players: IndyRouteRenderer.pauseRoute all frozen
     Enc->>Dialog: open with result Accept Regenerate Decline
     alt GM accepts
         Dialog->>Foundry: create ChatMessage
         Dialog->>Foundry: create JournalNote pin on canvas
         Dialog->>Foundry: spawn Actor token at zone position
-        Dialog->>Ticker: resumeRoute animation continues
     else GM regenerates
         Dialog->>Enc: re-roll table update dialog in place
-    else GM declines
-        Dialog->>Ticker: resumeRoute animation continues
     end
+    Enc->>Ticker: IndyRouteRenderer.resumeRoute (GM local)
+    Enc->>Socket: emit ENCOUNTER_RESUME routeId
+    Socket-->>Players: on CHANNEL resume routeId
+    Players->>Players: IndyRouteRenderer.resumeRoute all resume
 ```
 
 ---
@@ -212,12 +218,19 @@ globalThis.__travelerClock      = { advanceClock };
 
 The renderer reads from these at runtime. This is intentional, documented, and tested.
 
-### Encounter animation pause (GM only)
+### Encounter animation pause (all clients)
 
-When an encounter zone fires, only the **GM's** animation pauses while the dialog is open. Player
-clients see the route continue uninterrupted. This mirrors the natural table dynamic: players
-travel, the GM calls for a stop when something happens. The NPC token and Note appear via normal
-Foundry document creation, which all clients see immediately.
+When an encounter zone fires, **all clients** pause simultaneously. The sequence is:
+
+1. GM's renderer is paused locally (immediate, no round-trip delay).
+2. GM emits `ENCOUNTER_PAUSE` via socket → all player clients freeze at the same point.
+3. GM interacts with the EncounterDialog (accept / regenerate / decline).
+4. GM's renderer resumes locally.
+5. GM emits `ENCOUNTER_RESUME` → all player clients continue from where they stopped.
+
+This means players see their token freeze mid-route, the GM resolves the encounter, and then
+everyone resumes together. The NPC token and Note created on "accept" appear on all clients via
+normal Foundry document creation.
 
 ### Per-scene distance override vs. Foundry grid
 
@@ -332,8 +345,8 @@ All messages use channel `module.traveler`.
 | `PLAYER_PROPOSE` | player → GM | proposal object | GM queues proposal |
 | `PLAYER_APPROVE` | GM → all | route payload | All clients render approved route |
 | `PLAYER_REJECT` | GM → player | `{ proposalId }` | Player receives rejection notification |
-| `ENCOUNTER_PAUSE` | *(reserved)* | — | Future: pause all clients |
-| `ENCOUNTER_RESUME` | *(reserved)* | — | Future: resume all clients |
+| `ENCOUNTER_PAUSE` | GM → all | `{ routeId }` | All clients freeze the named route's animation |
+| `ENCOUNTER_RESUME` | GM → all | `{ routeId }` | All clients resume the named route's animation |
 
 > `ENCOUNTER_PAUSE` / `ENCOUNTER_RESUME` are defined but not currently used. The encounter dialog
 > only pauses the GM's local animation, which is sufficient for the current UX.

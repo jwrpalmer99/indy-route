@@ -11,7 +11,9 @@ import {
   createEncounterZone,
   checkZones,
   resetZoneTriggers,
-  buildFixedResult
+  buildFixedResult,
+  broadcastEncounterPause,
+  broadcastEncounterResume
 } from "../../scripts/encounters.js";
 
 // ---------------------------------------------------------------------------
@@ -227,5 +229,52 @@ describe("buildFixedResult", () => {
     const z = createEncounterZone("fixed", { actorId: "missing", label: "Mystery" });
     const result = buildFixedResult(z);
     expect(result.name).toBe("Mystery");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// broadcastEncounterPause / broadcastEncounterResume
+// game.socket.emit is already a vi.fn() from tests/setup.js — use it directly
+// and reset call history with vi.clearAllMocks() before each test.
+// ---------------------------------------------------------------------------
+
+describe("broadcastEncounterPause", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("emits ENCOUNTER_PAUSE via game.socket with the routeId", () => {
+    broadcastEncounterPause("route-abc");
+    expect(game.socket.emit).toHaveBeenCalledOnce();
+    const [channel, data] = game.socket.emit.mock.calls[0];
+    expect(channel).toMatch(/traveler/i);
+    expect(data.type).toBe("TRAVELER_ENCOUNTER_PAUSE");
+    expect(data.payload.routeId).toBe("route-abc");
+  });
+
+  it("sends a different routeId when called with a different id", () => {
+    broadcastEncounterPause("route-xyz");
+    const [, data] = game.socket.emit.mock.calls[0];
+    expect(data.payload.routeId).toBe("route-xyz");
+  });
+});
+
+describe("broadcastEncounterResume", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("emits ENCOUNTER_RESUME via game.socket with the routeId", () => {
+    broadcastEncounterResume("route-abc");
+    expect(game.socket.emit).toHaveBeenCalledOnce();
+    const [channel, data] = game.socket.emit.mock.calls[0];
+    expect(channel).toMatch(/traveler/i);
+    expect(data.type).toBe("TRAVELER_ENCOUNTER_RESUME");
+    expect(data.payload.routeId).toBe("route-abc");
+  });
+
+  it("is distinct from ENCOUNTER_PAUSE", () => {
+    broadcastEncounterPause("r1");
+    const pauseType = game.socket.emit.mock.calls[0][1].type;
+    vi.clearAllMocks();
+    broadcastEncounterResume("r1");
+    const resumeType = game.socket.emit.mock.calls[0][1].type;
+    expect(pauseType).not.toBe(resumeType);
   });
 });

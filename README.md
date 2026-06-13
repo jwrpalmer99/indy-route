@@ -307,7 +307,8 @@ Open the **⚔ Encounters** tab in the Style editor.
 
 #### GM Encounter Dialog
 
-When a zone fires during playback the animation pauses on the GM's client and a dialog appears:
+When a zone fires during playback **all clients pause simultaneously** — players see their token
+freeze mid-route. The GM sees a dialog and resolves it before everyone resumes:
 
 | Button | Effect |
 |---|---|
@@ -492,6 +493,7 @@ When the GM has set player routing to **Approval** mode:
 - Token-follow moves the actual token document — useful for fog-of-war reveal. Use an Actor UUID if you want a visual only.
 - Travel time uses full days plus a partial-day remainder (priced hourly).
 - The module attempts to use world currencies if conversions are available; otherwise falls back to gp/sp/cp.
+- When an encounter zone fires during route playback, **all connected clients** (players and GM) pause simultaneously at that point in the route. The GM resolves the encounter dialog (Accept / Regenerate / Decline), then everyone resumes together. Players see their token freeze mid-journey — this is intentional and expected.
 - Encounter tokens are imported into a world folder named **Random Encounters** and are reused if an actor with the same name already exists there.
 - The `scene.getFlag("traveler", "routes")` flag stores all routes for a scene. The old `"indy-route"` flag is not read — migration is manual if needed.
 - For developer documentation (architecture, testing, local CI) see [DEVELOPER-README.md](DEVELOPER-README.md).

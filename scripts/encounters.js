@@ -7,6 +7,7 @@
  */
 
 import { MODULE_ID, getTravelModeById } from "./settings.js";
+import { CHANNEL, MSG } from "./constants.js";
 
 // ---------------------------------------------------------------------------
 // Default zone factory
@@ -420,9 +421,30 @@ export async function resolveEncounter(result, zone, pos) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Broadcast an encounter-pause to all player clients.
+ * The GM's own animation is paused directly in handleZoneFired before this is
+ * called; this message causes every other connected client to freeze in sync.
+ *
+ * @param {string} routeId
+ */
+export function broadcastEncounterPause(routeId) {
+  game.socket.emit(CHANNEL, { type: MSG.ENCOUNTER_PAUSE, payload: { routeId } });
+}
+
+/**
+ * Broadcast an encounter-resume to all player clients.
+ * Called after the GM closes the EncounterDialog (accept, regenerate, or decline).
+ *
+ * @param {string} routeId
+ */
+export function broadcastEncounterResume(routeId) {
+  game.socket.emit(CHANNEL, { type: MSG.ENCOUNTER_RESUME, payload: { routeId } });
+}
+
+/**
  * Handle a zone that has fired during route animation.
- * Only called on the GM client.  Pauses the animation, shows the dialog,
- * resolves or skips, then resumes.
+ * Only called on the GM client.  Pauses the animation on ALL clients, shows
+ * the dialog, resolves or skips, then resumes ALL clients.
  *
  * @param {EncounterZone}   zone
  * @param {string}          routeId
@@ -455,14 +477,18 @@ export async function handleZoneFired(zone, routeId, pos, travelModeId = null) {
     if (Math.random() > effective) return;
   }
 
+  // Pause GM locally first, then broadcast pause to all player clients
   IndyRouteRenderer.pauseRoute(routeId);
+  broadcastEncounterPause(routeId);
 
   const dialog = new EncounterDialog({ zone, initialResult: result, routeId, pos });
   dialog.render({ force: true });
 
   const decision = await dialog.promise;
 
+  // Resume GM locally, then broadcast resume to all player clients
   IndyRouteRenderer.resumeRoute(routeId);
+  broadcastEncounterResume(routeId);
 
   if (decision === "accept") {
     await resolveEncounter(dialog.currentResult, zone, pos);
