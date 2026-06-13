@@ -17,9 +17,21 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `c3df688` — 2026-06-13 — Uplift to Foundry v14; fork renamed from `indy-route` to `traveler`
 - `5bd191a` — 2026-06-13 — Add v14 Scene Levels support (per-point elevation, level picker, token elevation during playback)
 - `f083f4f` — 2026-06-13 — Add `traveler.changeLevel` Region Behavior with roll-check dialog
+- `3e7e174` — 2026-06-13 — Add player pathfinding with A*, fog-of-war gating, and GM approval workflow
 
 ### Added
 - `architecture.md` — full module documentation including Mermaid class, sequence, and data-flow diagrams.
+
+### Added (Player Pathfinding — Phase 1 + 2)
+- **`playerRouteMode` setting** — world-scope GM setting: `off` (default), `immediate` (player routes play without approval), `approval` (GM queue).
+- **`PlayerRouteTool`** (`scripts/tool-player.js`) — player-facing canvas tool activated via toolbar button (visible when `playerRouteMode ≠ off`). Player selects their token, clicks a destination, A* computes the route, preview renders in the player's color; Enter submits, Esc cancels.
+- **A* pathfinder** (`scripts/pathfinding/astar.js`) — grid-aware shortest-path engine using `canvas.grid.getNeighbors`, `canvas.walls.checkCollision`, and a binary min-heap. 2 500-node budget prevents browser freeze; returns a partial path to the closest expanded node if the budget is hit.
+- **Fog-of-war gating** (`scripts/pathfinding/fog-checker.js`) — samples `canvas.visibility.explored` (a PIXI.RenderTexture) to block unexplored cells in pathfinding. Degrades gracefully when the texture is unavailable.
+- **Fog-boundary anchor** — when A* terminates at the fog edge, a pulsing ring is drawn at the last reachable node. The `sightRefresh` Foundry hook automatically re-runs pathfinding when vision expands. Clicking near the anchor starts a new path leg from that point.
+- **Region passability** — during pathfinding, cells inside regions are evaluated: `traveler.changeLevel` regions are passable (the check fires at playback time); `core.teleportToken` is passable; any other behavior type blocks the cell.
+- **GM approval workflow** (`scripts/proposals.js`, `ProposalStore`) — ephemeral in-memory queue of `PlayerRouteProposal` objects. On submit in approval mode, a socket message (`TRAVELER_PLAYER_PROPOSE`) delivers the proposal to the GM. The Route Manager shows a **Player Proposals** section with Preview (4 s preview animation), Approve (plays route for all clients), and Reject (optional reason, notifies player) buttons.
+- **Proposal socket messages** added to `constants.js`: `TRAVELER_PLAYER_IMMEDIATE`, `TRAVELER_PLAYER_PROPOSE`, `TRAVELER_PLAYER_APPROVE`, `TRAVELER_PLAYER_REJECT`.
+- **Plan document** saved to `docs/player-pathfinding.plan.md`.
 
 ### Added (Region Behavior — `traveler.changeLevel`)
 - **`TravelerChangeLevelBehavior`** (`scripts/behaviors/change-level.js`) — custom `RegionBehaviorType` registered as `traveler.changeLevel`.  GMs configure it via the standard Foundry RegionConfig panel.  Fields: `mode`, `targetLevelId`, `targetElevation`, `requiredStatusEffect`, `requiredItemPattern`, `requiresCheck`, `checkLabel`, `checkFormula`, `checkDC`, `failureDamage`, `allowRetry`.
