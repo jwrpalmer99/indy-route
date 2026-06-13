@@ -20,7 +20,8 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `3e7e174` — 2026-06-13 — Add player pathfinding with A*, fog-of-war gating, and GM approval workflow
 - `97ca978` — 2026-06-13 — Add Vitest unit tests, Quench integration tests, Docker CI, and GitHub Actions workflow
 - *(pending)* — 2026-06-13 — Fix `applyColorNumbers` for hex strings without leading `#`; add `.gitignore` and `.vscode/settings.json`
-- *(pending)* — 2026-06-13 — Add Encounter System (encounter zones on routes, GM confirmation dialog, Rollable Table integration)
+- `55e7ca5` — 2026-06-13 — Add Encounter System (encounter zones on routes, GM confirmation dialog, Rollable Table integration)
+- `15b545e` — 2026-06-13 — Fix `checkZones` boundary condition for zones placed at t=0.0
 
 ### Added — Encounter System
 - **`scripts/encounters.js`**: `EncounterManager` — `createEncounterZone`, `checkZones`, `resetZoneTriggers`, `rollTable`, `buildFixedResult`, `importActor`, `spawnToken`, `createNote`, `createChatMessage`, `resolveEncounter`, `handleZoneFired`.
