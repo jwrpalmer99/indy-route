@@ -7,12 +7,34 @@ import { IndyRouteSettingsApp } from "./apps/settings-app.js";
 import { IndyRouteTravelModesApp } from "./apps/travel-modes.js";
 import { IndyRouteCurrenciesApp } from "./apps/currencies.js";
 import { buildRouteFromPoints, getSceneRoutes, createRouteRecord } from "./routes.js";
+import { TravelerChangeLevelBehavior } from "./behaviors/change-level.js";
 
 /* -------------------------------------------- */
 /* Settings registration + menu                 */
 /* -------------------------------------------- */
 
 Hooks.once("init", () => {
+  /* ------------------------------------------------------------------ */
+  /* Region Behavior — Change Level                                      */
+  /* ------------------------------------------------------------------ */
+
+  // Register the custom behavior type so Foundry's RegionConfig UI exposes it.
+  CONFIG.RegionBehavior.dataModels["traveler.changeLevel"] = TravelerChangeLevelBehavior;
+
+  // Wire TOKEN_MOVE_IN to the behavior's handler.
+  // Done here (not at class-body level) so CONST.REGION_EVENTS is guaranteed
+  // to be populated before the assignment runs.
+  TravelerChangeLevelBehavior.events = {
+    [CONST.REGION_EVENTS.TOKEN_MOVE_IN]: TravelerChangeLevelBehavior.prototype._handleMoveIn
+  };
+
+  // Pre-load Handlebars templates used by the behavior's dialog.
+  loadTemplates([`modules/${MODULE_ID}/templates/level-check-dialog.hbs`]);
+
+  /* ------------------------------------------------------------------ */
+  /* Settings                                                            */
+  /* ------------------------------------------------------------------ */
+
   game.settings.register(MODULE_ID, "routeSettings", {
     name: "Route Settings",
     scope: "world",
