@@ -27,6 +27,26 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `1349ee7` — 2026-06-13 — Add Docker inspect mode, world:clean script, .env.example, named Foundry data volume
 - `b24889e` — 2026-06-13 — Rewrite README.md for Traveler; add DEVELOPER-README.md
 - `91264e9` — 2026-06-13 — Fix encounter pause: broadcast ENCOUNTER_PAUSE/RESUME to all clients
+- `157af25` — 2026-06-13 — Move compose file to docker/, overhaul .gitignore, update CI and npm scripts
+
+### Changed — Repository Housekeeping (pre-push)
+
+- **`docker-compose.test.yml` → `docker/compose.test.yml`**: Docker Compose file moved to a
+  dedicated `docker/` subdirectory to keep the project root clean. All volume bind-mount paths
+  inside the file updated from `./` to `../` (relative to new location). Git detected as a rename
+  — history is preserved.
+- **`package.json`**: `foundry:up`, `foundry:down`, `foundry:down:clean` npm scripts updated to
+  reference `docker/compose.test.yml`. Also switched from legacy `docker-compose` (v1 standalone,
+  deprecated) to `docker compose` (v2 plugin built into Docker CLI).
+- **`.github/workflows/ci.yml`**: Both `docker compose` invocations updated to use
+  `docker/compose.test.yml`.
+- **`.gitignore`**: Overhauled:
+  - `tests/world/` four separate patterns replaced with `tests/world/**` + `!tests/world/world.json`
+    negation (simpler, catches any new Foundry-generated files automatically).
+  - `.env` replaced with `.env*` + `!.env.example` (catches `.env.local`, `.env.production`, etc.).
+  - Added `playwright-report/`, `test-results/`, `*.log`, `npm-debug.log*`.
+- **`DEVELOPER-README.md`**: Updated all references from `docker-compose.test.yml` to
+  `docker/compose.test.yml`.
 
 ### Fixed — Encounter Pause Synchronisation (all clients)
 
