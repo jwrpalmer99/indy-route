@@ -1,16 +1,25 @@
 ##
-## docker-compose.test.yml — spin up a Foundry VTT v14 instance for
+## docker/compose.test.yml — spin up a Foundry VTT v14 instance for
 ## integration testing.
+##
+## All paths below are relative to this file (docker/).
+## The project root is one level up (../).
+##
+## ── Prerequisites ─────────────────────────────────────────────────────────────
+##
+##   1. Copy .env.example (project root) to .env and fill in your credentials.
+##      .env must live in the PROJECT ROOT (where npm scripts are run from),
+##      not inside docker/.  Docker Compose loads it from the working directory.
 ##
 ## ── Quick start ──────────────────────────────────────────────────────────────
 ##
-##   1. Copy .env.example to .env and fill in your credentials (never commit .env)
-##   2. docker-compose -f docker-compose.test.yml up -d
-##   3. npm run foundry:wait && npm run test:integration
+##   npm run foundry:up          # starts the container (detached)
+##   npm run foundry:wait        # waits for Foundry to be ready (~2 min first run)
+##   npm run test:integration    # run Quench tests via Playwright
 ##
 ## ── Inspect mode — keep test data alive for manual inspection ────────────────
 ##
-##   TRAVELER_KEEP_WORLD=true npm run test:integration
+##   npm run test:inspect
 ##
 ##   After the tests finish the container stays running.  Open a browser:
 ##     http://localhost:30000
@@ -20,13 +29,11 @@
 ##   To clean up world data and start fresh:
 ##     npm run world:clean
 ##
-## ── Teardown (full reset) ────────────────────────────────────────────────────
+## ── Teardown ─────────────────────────────────────────────────────────────────
 ##
-##   docker-compose -f docker-compose.test.yml down
-##
-##   Add -v only if you also want to wipe the named `foundry-data` volume
-##   (deletes Foundry's config, module installs, etc.):
-##     docker-compose -f docker-compose.test.yml down -v
+##   npm run foundry:down              # stop container (keeps named volume)
+##   npm run foundry:down:clean        # stop + wipe named volume (full reset;
+##                                     # requires re-activation next time)
 ##
 
 version: "3.8"
@@ -39,8 +46,8 @@ services:
 
     environment:
       ## ── Credentials ──────────────────────────────────────────────────
-      ## Store all four values in a local .env file (see .env.example).
-      ## Never commit real values.
+      ## Store all four values in a .env file at the PROJECT ROOT.
+      ## See .env.example — never commit real values.
       FOUNDRY_LICENSE_KEY:       "${FOUNDRY_LICENSE_KEY}"
       FOUNDRY_ADMIN_KEY:         "${FOUNDRY_ADMIN_KEY}"
       FOUNDRY_USERNAME:          "${FOUNDRY_USERNAME}"
@@ -58,17 +65,18 @@ services:
 
     volumes:
       ## Module source — read-only so tests never accidentally modify code.
-      - .:/home/foundry/resources/app/modules/traveler:ro
+      ## Path is relative to this compose file (../ = project root).
+      - ..:/home/foundry/resources/app/modules/traveler:ro
 
       ## Traveler CI test world definition (world.json lives here).
-      ## This is a bind mount so world data IS written to your local
-      ## tests/world/ directory and survives container restarts.
-      ## Run `npm run world:clean` to reset it.
-      - ./tests/world:/home/foundry/data/worlds/traveler-ci
+      ## Bind mount so world data IS written to ../tests/world/ and survives
+      ## container restarts.  Run `npm run world:clean` to reset it.
+      - ../tests/world:/home/foundry/data/worlds/traveler-ci
 
       ## Named volume for Foundry's full data directory (config, users, other
-      ## module installs, etc.).  This prevents re-activation on every restart
-      ## and lets the Quench module stay installed between runs.
+      ## module installs, etc.).  Prevents re-activation on every restart and
+      ## lets the Quench module stay installed between runs.
+      ## Destroyed only by `foundry:down:clean` (docker compose down -v).
       - foundry-data:/home/foundry/data
 
     ports:

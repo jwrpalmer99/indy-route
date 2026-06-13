@@ -80,7 +80,8 @@ traveler/
 │   ├── player-pathfinding.plan.md
 │   ├── testing.plan.md
 │   └── travel-time.plan.md
-├── docker-compose.test.yml       Docker Compose for local integration testing
+├── docker/
+│   └── compose.test.yml          Docker Compose for local integration testing
 ├── scripts/
 │   ├── run-quench.js             Playwright CI driver
 │   ├── foundry-wait.js           Polls /api/status until Foundry is ready
@@ -439,7 +440,7 @@ Copy-Item .env.example .env
 # edit .env with your FOUNDRY_LICENSE_KEY, FOUNDRY_ADMIN_KEY, FOUNDRY_USERNAME, FOUNDRY_PASSWORD
 
 # 2. Start Foundry in Docker
-npm run foundry:up        # docker-compose up -d
+npm run foundry:up        # docker compose -f docker/compose.test.yml up -d
 
 # 3. Wait for Foundry to finish initialising (~2-3 min on first run)
 npm run foundry:wait
@@ -491,17 +492,17 @@ Workflow: `.github/workflows/ci.yml`
 
 | Secret | Used by |
 |---|---|
-| `FOUNDRY_LICENSE_KEY` | docker-compose.test.yml |
-| `FOUNDRY_ADMIN_KEY` | docker-compose.test.yml + run-quench.js |
-| `FOUNDRY_USERNAME` | docker-compose.test.yml (felddy image download) |
-| `FOUNDRY_PASSWORD` | docker-compose.test.yml |
+| `FOUNDRY_LICENSE_KEY` | docker/compose.test.yml |
+| `FOUNDRY_ADMIN_KEY` | docker/compose.test.yml + run-quench.js |
+| `FOUNDRY_USERNAME` | docker/compose.test.yml (felddy image download) |
+| `FOUNDRY_PASSWORD` | docker/compose.test.yml |
 
 The integration job does **not** run by default on forks or branches that lack secrets —
 Foundry's activation requires a real license key.
 
 > **Note on CircleCI:** CircleCI supports Docker-in-Docker for running Compose. The same
 > workflow translates directly; replace the `runs-on: ubuntu-latest` GitHub Action steps with
-> CircleCI `machine` executor steps. The `docker-compose.test.yml` file is CI-system-agnostic.
+> CircleCI `machine` executor steps. The `docker/compose.test.yml` file is CI-system-agnostic.
 
 ---
 
