@@ -5,16 +5,16 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test":             "vitest run",
-    "test:watch":       "vitest",
-    "coverage":         "vitest run --coverage",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
     "test:integration": "node scripts/run-quench.js",
-    "foundry:wait":     "node scripts/foundry-wait.js"
+    "foundry:wait": "node scripts/foundry-wait.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0",
-    "@vitest/coverage-v8": "^1.6.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "playwright": "^1.44.0",
-    "vitest": "^1.6.0"
+    "vitest": "^4.1.8"
   }
 }

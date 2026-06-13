@@ -1,0 +1,15 @@
+# Node
+node_modules/
+package-lock.json
+
+# Test output
+coverage/
+playwright-traces/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.suo
+*.user

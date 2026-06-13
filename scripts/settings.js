@@ -170,24 +170,28 @@ export function getCameraScaleForPath(totalLen, zoomFactor = DEFAULTS.cameraZoom
   return Math.min(maxScale, Math.max(minScale, targetScale));
 }
 
+/** Parse a CSS hex colour string (with or without leading `#`) to a number. */
+function _hexToNum(hex, fallback) {
+  const h = (hex || fallback || "#000000").replace(/^#/, "");
+  return parseInt(h, 16);
+}
+
 export function getSettings() {
   const s = applyMapScaling(game.settings.get(MODULE_ID, "routeSettings"));
-  const toNum = (hex, fallback) => parseInt((hex || fallback || "#000000").replace("#","0x"));
   return {
     ...s,
-    lineColorNum: toNum(s.lineColor, DEFAULTS.lineColor),
-    dotColorNum: toNum(s.dotColor, DEFAULTS.dotColor),
-    labelColorNum: toNum(s.labelColor, DEFAULTS.labelColor)
+    lineColorNum:  _hexToNum(s.lineColor,  DEFAULTS.lineColor),
+    dotColorNum:   _hexToNum(s.dotColor,   DEFAULTS.dotColor),
+    labelColorNum: _hexToNum(s.labelColor, DEFAULTS.labelColor)
   };
 }
 
 export function applyColorNumbers(settings) {
-  const toNum = (hex, fallback) => parseInt((hex || fallback || "#000000").replace("#","0x"));
   return {
     ...settings,
-    lineColorNum: toNum(settings.lineColor, DEFAULTS.lineColor),
-    dotColorNum: toNum(settings.dotColor, DEFAULTS.dotColor),
-    labelColorNum: toNum(settings.labelColor, DEFAULTS.labelColor)
+    lineColorNum:  _hexToNum(settings.lineColor,  DEFAULTS.lineColor),
+    dotColorNum:   _hexToNum(settings.dotColor,   DEFAULTS.dotColor),
+    labelColorNum: _hexToNum(settings.labelColor, DEFAULTS.labelColor)
   };
 }
 

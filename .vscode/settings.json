@@ -1,0 +1,10 @@
+{
+  // Tell the Vitest extension exactly where the config lives
+  "vitest.rootConfig": "${workspaceFolder}/vitest.config.js",
+
+  // Show inline pass/fail indicators next to each test
+  "vitest.showFailMessages": true,
+
+  // Keep the extension enabled for this workspace
+  "vitest.enable": true
+}

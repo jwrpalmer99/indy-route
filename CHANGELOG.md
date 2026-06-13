@@ -18,7 +18,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `5bd191a` — 2026-06-13 — Add v14 Scene Levels support (per-point elevation, level picker, token elevation during playback)
 - `f083f4f` — 2026-06-13 — Add `traveler.changeLevel` Region Behavior with roll-check dialog
 - `3e7e174` — 2026-06-13 — Add player pathfinding with A*, fog-of-war gating, and GM approval workflow
-- *(pending)* — 2026-06-13 — Add Vitest unit tests, Quench integration tests, Docker CI, and GitHub Actions workflow
+- `97ca978` — 2026-06-13 — Add Vitest unit tests, Quench integration tests, Docker CI, and GitHub Actions workflow
+- *(pending)* — 2026-06-13 — Fix `applyColorNumbers` for hex strings without leading `#`; add `.gitignore` and `.vscode/settings.json`
+
+### Fixed
+- **`scripts/settings.js`** — `applyColorNumbers` and `getSettings` now correctly parse hex colour strings that lack a leading `#` (e.g. `"ff6400"`). Extracted shared `_hexToNum` helper to remove duplicated parsing logic.
 
 ### Added — Testing Infrastructure
 - **`package.json`**: Dev dependencies for Vitest 1.x, Playwright 1.x, and `@vitest/coverage-v8`. Five npm scripts: `test`, `test:watch`, `coverage`, `test:integration`, `foundry:wait`.
