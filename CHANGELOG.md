@@ -13,7 +13,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased] — targeting v2.0.0
 
 ### Commits
-- *(pending)* — 2026-06-13 — Add Party System (party tokens, multi-user checks, party config UI)
+- `b4284fc` — 2026-06-13 — Add Party System (party tokens, multi-user checks, party config UI)
 - `e0662db` — 2026-06-13 — Add architecture.md documentation
 - `c3df688` — 2026-06-13 — Uplift to Foundry v14; fork renamed from `indy-route` to `traveler`
 - `5bd191a` — 2026-06-13 — Add v14 Scene Levels support (per-point elevation, level picker, token elevation during playback)
@@ -29,7 +29,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `b24889e` — 2026-06-13 — Rewrite README.md for Traveler; add DEVELOPER-README.md
 - `91264e9` — 2026-06-13 — Fix encounter pause: broadcast ENCOUNTER_PAUSE/RESUME to all clients
 - `157af25` — 2026-06-13 — Move compose file to docker/, overhaul .gitignore, update CI and npm scripts
-- *(pending)* — 2026-06-13 — Add Party System (party tokens, multi-user checks, party config UI)
+- `b4284fc` — 2026-06-13 — Add Party System (party tokens, multi-user checks, party config UI)
 
 ### Added — Party System
 
