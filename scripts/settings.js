@@ -1,5 +1,25 @@
 export const MODULE_ID = "traveler";
 
+/** Allowed values for the `playerRouteMode` world setting. */
+export const PLAYER_ROUTE_MODE = {
+  OFF: "off",
+  IMMEDIATE: "immediate",
+  APPROVAL: "approval"
+};
+
+/**
+ * Read the current playerRouteMode world setting.
+ * Safe to call before `game.settings` is ready (returns "off").
+ * @returns {"off"|"immediate"|"approval"}
+ */
+export function getPlayerRouteMode() {
+  try {
+    return game.settings.get(MODULE_ID, "playerRouteMode") ?? PLAYER_ROUTE_MODE.OFF;
+  } catch {
+    return PLAYER_ROUTE_MODE.OFF;
+  }
+}
+
 export const DEFAULTS = {
   lineColor: "#d61f1f",
   lineAlpha: 0.95,

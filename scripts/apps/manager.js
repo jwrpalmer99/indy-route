@@ -1,9 +1,11 @@
-import { MODULE_ID, DEFAULTS, normalizeSettings, getTravelModes } from "../settings.js";
-import { CHANNEL } from "../constants.js";
+import { MODULE_ID, DEFAULTS, normalizeSettings, getTravelModes, getPlayerRouteMode, PLAYER_ROUTE_MODE } from "../settings.js";
+import { CHANNEL, MSG } from "../constants.js";
 import { IndyRouteRenderer } from "../renderer.js";
 import { IndyRouteTool } from "../tool.js";
 import { buildRouteFromPoints, createRouteRecord, getSceneRoutes, setSceneRoutes } from "../routes.js";
 import { IndyRouteEditor } from "./settings-app.js";
+import { ProposalStore } from "../proposals.js";
+import { proposalToPayload } from "../tool-player.js";
 
 export class IndyRouteManager extends foundry.applications.api.HandlebarsApplicationMixin(
   foundry.applications.api.ApplicationV2
@@ -216,9 +218,21 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       lengthLabel: this._getRouteLengthLabel(route),
       levelName: this._getRouteLevelName(route)
     }));
+
+    const showProposals = game.user.isGM && getPlayerRouteMode() === PLAYER_ROUTE_MODE.APPROVAL;
+    const proposals = showProposals
+      ? ProposalStore.getAll().map((p) => ({
+          ...p,
+          timeAgo: _timeAgo(p.submittedAt)
+        }))
+      : [];
+
     return {
       routes,
-      selectedId: this.selectedId
+      selectedId: this.selectedId,
+      showProposals,
+      proposals,
+      proposalCount: proposals.length
     };
   }
 
@@ -310,6 +324,29 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       if (select) {
         event.preventDefault();
         this._selectRoute(select.dataset.routeId);
+        return;
+      }
+
+      // Proposal actions (GM, approval mode)
+      const approveBtn = event.target?.closest?.("[data-action='approve-proposal']");
+      if (approveBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        this._approveProposal(approveBtn.dataset.proposalId);
+        return;
+      }
+      const rejectBtn = event.target?.closest?.("[data-action='reject-proposal']");
+      if (rejectBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        this._rejectProposal(rejectBtn.dataset.proposalId);
+        return;
+      }
+      const previewBtn = event.target?.closest?.("[data-action='preview-proposal']");
+      if (previewBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        this._previewProposal(previewBtn.dataset.proposalId);
       }
     };
     content?.addEventListener("click", this._managerClickHandler, true);
@@ -669,4 +706,84 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
 
     editor.render({ force: true });
   }
+
+  // -------------------------------------------------------------------------
+  // Proposal actions (GM, approval mode)
+  // -------------------------------------------------------------------------
+
+  _approveProposal(proposalId) {
+    const proposal = ProposalStore.get(proposalId);
+    if (!proposal) return;
+    ProposalStore.remove(proposalId);
+    const payload = proposalToPayload(proposal);
+    // Broadcast approval to all clients (they will play + remove from their store)
+    game.socket.emit(CHANNEL, {
+      type: MSG.PLAYER_APPROVE,
+      payload: { ...proposal, ...payload }
+    });
+    // Render locally too (socket doesn't loop back)
+    IndyRouteRenderer.render(payload);
+    this.render({ force: false });
+    ui.notifications.info(`Approved route for ${proposal.playerName} (${proposal.tokenName}).`);
+  }
+
+  async _rejectProposal(proposalId) {
+    const proposal = ProposalStore.get(proposalId);
+    if (!proposal) return;
+
+    // Optional reason
+    const dialogApi = foundry.applications?.api?.DialogV2 ?? Dialog;
+    let reason = "";
+    try {
+      reason = await new Promise((resolve) => {
+        const d = new Dialog({
+          title: "Reject Route",
+          content: `<div style="margin-bottom:8px">Reject route from <strong>${proposal.playerName}</strong>?</div>
+            <div class="form-group"><label>Reason (optional)</label>
+            <input type="text" id="reject-reason" placeholder="e.g. Path not scouted yet" style="width:100%"></div>`,
+          buttons: {
+            reject: {
+              label: "Reject",
+              callback: (html) => resolve(html.find("#reject-reason").val() ?? "")
+            },
+            cancel: { label: "Cancel", callback: () => resolve(null) }
+          },
+          default: "reject"
+        });
+        d.render(true);
+      });
+    } catch {
+      reason = "";
+    }
+
+    if (reason === null) return; // cancelled
+
+    ProposalStore.remove(proposalId);
+    game.socket.emit(CHANNEL, {
+      type: MSG.PLAYER_REJECT,
+      payload: { userId: proposal.userId, reason: reason || "" }
+    });
+    this.render({ force: false });
+    ui.notifications.info(`Rejected route from ${proposal.playerName}.`);
+  }
+
+  _previewProposal(proposalId) {
+    const proposal = ProposalStore.get(proposalId);
+    if (!proposal || !canvas?.ready) return;
+    const payload = proposalToPayload(proposal);
+    // Preview-only: set a short lingerMs so it fades
+    IndyRouteRenderer.render({ ...payload, lingerMs: 4000, startTime: Date.now() });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Module-level helpers
+// ---------------------------------------------------------------------------
+
+function _timeAgo(ts) {
+  const diffMs = Date.now() - ts;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins === 1) return "1 min ago";
+  return `${mins} min ago`;
 }

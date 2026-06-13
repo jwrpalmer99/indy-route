@@ -8,6 +8,10 @@ import { IndyRouteTravelModesApp } from "./apps/travel-modes.js";
 import { IndyRouteCurrenciesApp } from "./apps/currencies.js";
 import { buildRouteFromPoints, getSceneRoutes, createRouteRecord } from "./routes.js";
 import { TravelerChangeLevelBehavior } from "./behaviors/change-level.js";
+import { PlayerRouteTool, proposalToPayload } from "./tool-player.js";
+import { ProposalStore } from "./proposals.js";
+import { PLAYER_ROUTE_MODE, getPlayerRouteMode } from "./settings.js";
+import { MSG } from "./constants.js";
 
 /* -------------------------------------------- */
 /* Settings registration + menu                 */
@@ -94,6 +98,20 @@ Hooks.once("init", () => {
     type: String,
     default: "ep,pp"
   });
+
+  game.settings.register(MODULE_ID, "playerRouteMode", {
+    name: "Player Pathfinding",
+    hint: "Allow players to draw travel routes for their own tokens using the pathfinding tool.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      [PLAYER_ROUTE_MODE.OFF]:       "Off — GM only (default)",
+      [PLAYER_ROUTE_MODE.IMMEDIATE]: "On — players can submit routes (plays immediately)",
+      [PLAYER_ROUTE_MODE.APPROVAL]:  "On — players submit routes for GM approval"
+    },
+    default: PLAYER_ROUTE_MODE.OFF
+  });
 });
 
 /* -------------------------------------------- */
@@ -126,6 +144,20 @@ Hooks.on("getSceneControlButtons", (controls) => {
     visible: game.user.isGM,
     onChange: () => IndyRouteTool.clearAllBroadcast()
   };
+
+  // Player pathfinding button — visible to players (and GM) when mode is not off.
+  const playerMode = getPlayerRouteMode();
+  if (playerMode !== PLAYER_ROUTE_MODE.OFF) {
+    group.tools.travelerPlayerRoute = {
+      name: "travelerPlayerRoute",
+      title: "Plan My Route",
+      icon: "fa-solid fa-person-walking-arrow-right",
+      order: order + 2,
+      button: true,
+      visible: !game.user.isGM || true,  // visible to everyone when enabled
+      onChange: () => PlayerRouteTool.start()
+    };
+  }
 });
 
 /* -------------------------------------------- */
@@ -218,9 +250,54 @@ Hooks.once("ready", () => {
   game.socket.on(CHANNEL, (data) => {
     if (!data) return;
 
-    if (data.type === "TRAVELER_ROUTE") IndyRouteRenderer.render(data.payload);
-    if (data.type === "TRAVELER_CLEAR_ROUTE") IndyRouteRenderer.clearRoute(data.payload?.routeId);
-    if (data.type === "TRAVELER_CLEAR") IndyRouteRenderer.clearLocal();
+    // --- existing GM broadcast messages ---
+    if (data.type === MSG.BROADCAST)   IndyRouteRenderer.render(data.payload);
+    if (data.type === MSG.CLEAR_ROUTE) IndyRouteRenderer.clearRoute(data.payload?.routeId);
+    if (data.type === MSG.CLEAR)       IndyRouteRenderer.clearLocal();
+
+    // --- player pathfinding messages ---
+
+    // Immediate mode: all clients play the route directly
+    if (data.type === MSG.PLAYER_IMMEDIATE) {
+      IndyRouteRenderer.render(data.payload);
+    }
+
+    // Approval mode: GM receives proposal and queues it
+    if (data.type === MSG.PLAYER_PROPOSE && game.user.isGM) {
+      const proposal = data.payload;
+      if (!proposal?.id) return;
+      ProposalStore.add(proposal);
+      // Refresh the Route Manager if it is open
+      IndyRouteManager._instance?.render({ force: false });
+      ui.notifications.info(
+        `Traveler | ${proposal.playerName} proposed a route for ${proposal.tokenName}.`
+      );
+    }
+
+    // All clients: GM approved — play the route and remove from store
+    if (data.type === MSG.PLAYER_APPROVE) {
+      const proposal = data.payload;
+      if (!proposal?.id) return;
+      ProposalStore.remove(proposal.id);
+      IndyRouteRenderer.render(proposalToPayload(proposal));
+      IndyRouteManager._instance?.render({ force: false });
+      if (data.payload.userId === game.user.id) {
+        ui.notifications.info("Your proposed route was approved!");
+      }
+    }
+
+    // Targeted user: GM rejected
+    if (data.type === MSG.PLAYER_REJECT) {
+      if (data.payload?.userId !== game.user.id) return;
+      const reason = data.payload?.reason ? `: ${data.payload.reason}` : ".";
+      ui.notifications.warn(`Traveler | Your route proposal was rejected${reason}`);
+    }
+  });
+
+  // Clear ephemeral proposals on scene change
+  Hooks.on("canvasReady", () => {
+    ProposalStore.clear();
+    IndyRouteManager._instance?.render({ force: false });
   });
 
   const api = {

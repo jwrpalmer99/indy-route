@@ -107,6 +107,71 @@
         white-space: nowrap;
         flex: 0 0 auto;
     }
+    /* ── Proposals section ── */
+    .traveler-manager .proposals-section {
+        margin-top: 14px;
+        border-top: 1px solid var(--color-border-light-2);
+        padding-top: 10px;
+    }
+    .traveler-manager .proposals-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-weight: 700;
+        font-size: 0.9em;
+    }
+    .traveler-manager .proposals-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 4px;
+        border-radius: 9px;
+        font-size: 0.75em;
+        font-weight: 700;
+        background: var(--color-border-highlight, #ff6400);
+        color: #fff;
+    }
+    .traveler-manager .proposal-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        padding: 7px 8px;
+        border: 1px solid var(--color-border-light-2);
+        border-radius: 6px;
+        background: var(--color-bg);
+        margin-bottom: 6px;
+    }
+    .traveler-manager .proposal-info {
+        min-width: 0;
+    }
+    .traveler-manager .proposal-info strong {
+        font-size: 0.9em;
+    }
+    .traveler-manager .proposal-meta {
+        font-size: 0.75em;
+        color: var(--color-text-light-6);
+        margin-top: 1px;
+    }
+    .traveler-manager .proposal-actions {
+        display: flex;
+        gap: 5px;
+    }
+    .traveler-manager .proposal-actions button {
+        padding: 4px 8px;
+        font-size: 0.85em;
+    }
+    .traveler-manager .proposal-actions button[data-action="approve-proposal"] {
+        color: var(--color-level-success, #4caf50);
+        border-color: var(--color-level-success, #4caf50);
+    }
+    .traveler-manager .proposal-actions button[data-action="reject-proposal"] {
+        color: var(--color-level-error, #e53935);
+        border-color: var(--color-level-error, #e53935);
+    }
 </style>
 
 <form class="traveler-manager">
@@ -167,4 +232,57 @@
             <p class="hint">No routes recorded for this scene.</p>
         {{/if}}
     </div>
+
+    {{!-- GM-only Proposals section (approval mode) --}}
+    {{#if showProposals}}
+    <div class="proposals-section">
+        <div class="proposals-header">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            Player Proposals
+            {{#if proposalCount}}
+            <span class="proposals-badge">{{proposalCount}}</span>
+            {{/if}}
+        </div>
+
+        {{#if proposals.length}}
+            {{#each proposals as |p|}}
+            <div class="proposal-item" data-proposal-id="{{p.id}}">
+                <div class="proposal-info">
+                    <strong>{{p.playerName}}</strong> &mdash; {{p.tokenName}}
+                    <div class="proposal-meta">
+                        <i class="fa-solid fa-clock"></i> {{p.timeAgo}}
+                        &nbsp;&bull;&nbsp;
+                        {{p.path.length}} waypoints
+                    </div>
+                </div>
+                <div class="proposal-actions">
+                    <button type="button"
+                            data-action="preview-proposal"
+                            data-proposal-id="{{p.id}}"
+                            data-tooltip="Preview on canvas (4 s)"
+                            data-tooltip-direction="UP">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                    <button type="button"
+                            data-action="approve-proposal"
+                            data-proposal-id="{{p.id}}"
+                            data-tooltip="Approve — play route"
+                            data-tooltip-direction="UP">
+                        <i class="fa-solid fa-check"></i>
+                    </button>
+                    <button type="button"
+                            data-action="reject-proposal"
+                            data-proposal-id="{{p.id}}"
+                            data-tooltip="Reject"
+                            data-tooltip-direction="UP">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            {{/each}}
+        {{else}}
+            <p class="hint">No pending player route proposals.</p>
+        {{/if}}
+    </div>
+    {{/if}}
 </form>
