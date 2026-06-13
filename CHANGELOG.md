@@ -23,6 +23,19 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `55e7ca5` — 2026-06-13 — Add Encounter System (encounter zones on routes, GM confirmation dialog, Rollable Table integration)
 - `15b545e` — 2026-06-13 — Fix `checkZones` boundary condition for zones placed at t=0.0
 - `3cc96d8` — 2026-06-13 — Add world clock advance, player speed dialog, encounter speed scaling, per-scene distance override
+- `b949842` — 2026-06-13 — Update CHANGELOG with travel-time features
+- `1349ee7` — 2026-06-13 — Add Docker inspect mode, world:clean script, .env.example, named Foundry data volume
+
+### Added — Docker Inspect Mode & CI Ergonomics
+
+- **`docker-compose.test.yml`**: Added a named `foundry-data` volume so Foundry config, users, and module installs (Quench) persist across container restarts — no more re-activation on every `docker-compose up`. Header comment rewritten with full usage guide.
+- **`TRAVELER_KEEP_WORLD=true`**: New env flag for `npm run test:inspect`. When set, Quench test `after()` teardown hooks are skipped so all created scenes, actors, notes, and tokens remain in the world. The Foundry instance stays running at `http://localhost:30000` for manual inspection.
+- **`scripts/run-quench.js`**: Reads `TRAVELER_KEEP_WORLD` and injects it as `window.TRAVELER_KEEP_WORLD` into the Foundry page before tests run. Prints an inspection guide to stdout when inspect mode is active.
+- **`tests/quench/fixtures.js`**: `teardown()` checks `globalThis.TRAVELER_KEEP_WORLD` and skips deletion (with a console log) when inspect mode is on.
+- **`scripts/world-clean.js`**: New script (`npm run world:clean`) removes all Foundry-generated database files from `tests/world/` while preserving `world.json`. Run this after an inspect session to reset the world to a clean state.
+- **`.env.example`**: Template for local credentials used by docker-compose — copy to `.env` (git-ignored).
+- **`.gitignore`**: Added `.env`, `tests/world/data/`, `tests/world/packs/`, `tests/world/*.db`, `tests/world/*.db.lock`.
+- **`package.json`**: New npm scripts: `test:inspect`, `foundry:up`, `foundry:down`, `foundry:down:clean`, `world:clean`. Added `cross-env` dev dependency for Windows-compatible env var passing.
 
 ### Added — World Clock, Player Speed & Scene Distance
 
