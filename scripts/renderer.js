@@ -630,6 +630,15 @@ export const IndyRouteRenderer = {
         restoreState.previewEnded = true;
         maybePromptRestore();
       }
+
+      // ── World clock advance (GM only, non-preview) ───────────────────
+      if (game.user?.isGM && !payload.preview) {
+        const modeId = payload.travelModeId ?? settings.travelMode ?? null;
+        if (modeId && modeId !== "none") {
+          const { advanceClock } = globalThis.__travelerClock ?? {};
+          if (advanceClock) advanceClock(totalLen, modeId);
+        }
+      }
     };
 
     let soundHandle = null;
@@ -724,12 +733,13 @@ export const IndyRouteRenderer = {
           if (checkZones && handleZoneFired) {
             const fired = checkZones(payload.encounters, t, tPrev);
             if (fired.length > 0) {
-              const currentPos = path[Math.min(idx - 1, path.length - 1)];
+              const currentPos  = path[Math.min(idx - 1, path.length - 1)];
+              const travelModeId = payload.travelModeId ?? settings.travelMode ?? null;
               encState._busy = true;
               // Fire zones sequentially to avoid dialog overlap
               (async () => {
                 for (const zone of fired) {
-                  await handleZoneFired(zone, routeId, currentPos);
+                  await handleZoneFired(zone, routeId, currentPos, travelModeId);
                 }
                 encState._busy = false;
               })();

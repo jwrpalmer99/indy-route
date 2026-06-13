@@ -1,0 +1,92 @@
+<style>
+  .traveler-scene-settings .window-content {
+    padding: 16px;
+  }
+  .traveler-scene-settings .scene-dist-header {
+    font-size: 0.85em;
+    color: var(--color-text-dark-secondary);
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--color-border-light-2);
+    padding-bottom: 8px;
+  }
+  .traveler-scene-settings .scene-dist-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .traveler-scene-settings .scene-dist-row label {
+    min-width: 130px;
+    font-size: 0.85em;
+  }
+  .traveler-scene-settings .scene-dist-row input[type="number"],
+  .traveler-scene-settings .scene-dist-row input[type="text"] {
+    flex: 1;
+    font-size: 0.85em;
+  }
+  .traveler-scene-settings .scene-dist-fields {
+    margin-top: 10px;
+    transition: opacity 0.15s;
+  }
+  .traveler-scene-settings .scene-dist-native {
+    font-size: 0.78em;
+    color: var(--color-text-dark-secondary);
+    margin-top: 2px;
+    margin-bottom: 12px;
+  }
+  .traveler-scene-settings .scene-dist-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .traveler-scene-settings .scene-dist-actions button {
+    flex: 1;
+    padding: 7px 0;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+  .traveler-scene-settings .btn-save {
+    background: var(--color-bg-btn-success, #2d6e2d);
+    color: #fff;
+    border-color: transparent;
+  }
+</style>
+
+<p class="scene-dist-header">
+  <strong>{{sceneName}}</strong><br>
+  Override how many real-world distance units one grid square represents on this
+  scene. Use this for geo-scale overland maps where Foundry's grid is set to
+  combat scale (e.g. 5 ft) but the map shows miles.
+</p>
+
+<p class="scene-dist-native">
+  Foundry native grid: <strong>{{nativeDistance}} {{nativeUnits}}</strong> per square
+</p>
+
+<div class="scene-dist-row">
+  <label>Enable override</label>
+  <input type="checkbox" name="enabled" {{#if enabled}}checked{{/if}}>
+</div>
+
+<div class="scene-dist-fields">
+  <div class="scene-dist-row">
+    <label>Distance per square</label>
+    <input type="number" name="distancePerSquare"
+           value="{{distancePerSquare}}" min="0.001" step="any">
+  </div>
+  <div class="scene-dist-row">
+    <label>Units label</label>
+    <input type="text" name="units" value="{{units}}"
+           placeholder="miles, km, leagues…" maxlength="20">
+  </div>
+</div>
+
+<div class="scene-dist-actions">
+  <button type="button" class="btn-save" data-action="save">
+    <i class="fa-solid fa-floppy-disk"></i> Save
+  </button>
+  <button type="button" data-action="clear">
+    <i class="fa-solid fa-trash"></i> Clear Override
+  </button>
+</div>

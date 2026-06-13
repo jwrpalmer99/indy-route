@@ -72,23 +72,58 @@ export const DEFAULTS = {
 };
 
 export const DEFAULT_TRAVEL_MODES = [
-  { id: "walk-fast", label: "Walking (Fast)", speedMph: 4, perDayMiles: 30 },
-  { id: "walk-normal", label: "Walking (Normal)", speedMph: 3, perDayMiles: 24 },
-  { id: "walk-slow", label: "Walking (Slow)", speedMph: 2, perDayMiles: 18 },
-  { id: "horseback", label: "Horseback", speedMph: 6, perDayMiles: 50 },
-  { id: "coach", label: "Coach", speedMph: 4, perDayMiles: 35, costPerHour: { standard: 0.1 }, costPerDay: { standard: 1 } },
-  { id: "orien-coach", label: "Orien Coach", speedMph: 6, perDayMiles: 50, costPerHour: { standard: 1 }, costPerDay: { standard: 8 } },
-  { id: "lightning-rail", label: "Lightning Rail", speedMph: 30, perDayMiles: 720, costPerHour: { first: 15, standard: 6, steerage: 0.6 }, costPerDay: { first: 350, standard: 150, steerage: 15 } },
-  { id: "sailing-ship", label: "Sailing Ship", speedMph: 3, perDayMiles: 75, costPerHour: { standard: 0.3 }, costPerDay: { standard: 7.5 } },
-  { id: "galleon", label: "Galleon", speedMph: 5, perDayMiles: 120, costPerHour: { first: 1.5, standard: 0.5, steerage: 0.1 }, costPerDay: { first: 35, standard: 12, steerage: 2.5 } },
-  { id: "elemental-galleon", label: "Elemental Galleon", speedMph: 10, perDayMiles: 250, costPerHour: { first: 5, standard: 2, steerage: 0.2 }, costPerDay: { first: 120, standard: 50, steerage: 5 } },
-  { id: "elemental-airship", label: "Elemental Airship", speedMph: 20, perDayMiles: 500, costPerHour: { standard: 20 }, costPerDay: { standard: 500 } }
+  // encounterMult: multiplier applied to each encounter zone's chance at this speed.
+  // >1 = higher danger (less observant / more noise), <1 = lower danger.
+  { id: "walk-slow",        label: "Walking (Slow)",     speedMph: 2,  perDayMiles: 18,  encounterMult: 0.7 },
+  { id: "walk-normal",      label: "Walking (Normal)",   speedMph: 3,  perDayMiles: 24,  encounterMult: 1.0 },
+  { id: "walk-fast",        label: "Walking (Fast)",     speedMph: 4,  perDayMiles: 30,  encounterMult: 1.3 },
+  { id: "horseback",        label: "Horseback",          speedMph: 6,  perDayMiles: 50,  encounterMult: 1.6 },
+  { id: "coach",            label: "Coach",              speedMph: 4,  perDayMiles: 35,  encounterMult: 1.4, costPerHour: { standard: 0.1 }, costPerDay: { standard: 1 } },
+  { id: "orien-coach",      label: "Orien Coach",        speedMph: 6,  perDayMiles: 50,  encounterMult: 1.4, costPerHour: { standard: 1 },   costPerDay: { standard: 8 } },
+  { id: "lightning-rail",   label: "Lightning Rail",     speedMph: 30, perDayMiles: 720, encounterMult: 0.5, costPerHour: { first: 15, standard: 6, steerage: 0.6 }, costPerDay: { first: 350, standard: 150, steerage: 15 } },
+  { id: "sailing-ship",     label: "Sailing Ship",       speedMph: 3,  perDayMiles: 75,  encounterMult: 1.2, costPerHour: { standard: 0.3 }, costPerDay: { standard: 7.5 } },
+  { id: "galleon",          label: "Galleon",            speedMph: 5,  perDayMiles: 120, encounterMult: 1.2, costPerHour: { first: 1.5, standard: 0.5, steerage: 0.1 }, costPerDay: { first: 35, standard: 12, steerage: 2.5 } },
+  { id: "elemental-galleon",label: "Elemental Galleon",  speedMph: 10, perDayMiles: 250, encounterMult: 0.8, costPerHour: { first: 5, standard: 2, steerage: 0.2 }, costPerDay: { first: 120, standard: 50, steerage: 5 } },
+  { id: "elemental-airship",label: "Elemental Airship",  speedMph: 20, perDayMiles: 500, encounterMult: 0.4, costPerHour: { standard: 20 }, costPerDay: { standard: 500 } }
 ];
 
 export function getTravelModes() {
   const modes = game.settings.get(MODULE_ID, "travelModes");
   if (Array.isArray(modes) && modes.length) return foundry.utils.deepClone(modes);
   return foundry.utils.deepClone(DEFAULT_TRAVEL_MODES);
+}
+
+/**
+ * Return the effective distance-per-grid-square for the current scene.
+ * Priority: scene flag override → Foundry's built-in grid.distance → fallback 1.
+ * @param {Scene} [scene]
+ * @returns {{ distancePerSquare: number, units: string }}
+ */
+export function getSceneDistanceConfig(scene = canvas?.scene) {
+  if (scene) {
+    const flag = scene.getFlag?.(MODULE_ID, "sceneDistance");
+    if (flag?.enabled && Number.isFinite(flag.distancePerSquare) && flag.distancePerSquare > 0) {
+      return {
+        distancePerSquare: flag.distancePerSquare,
+        units: flag.units || "miles",
+        overridden: true
+      };
+    }
+  }
+  const d = scene?.grid?.distance ?? scene?.gridDistance ?? 1;
+  const u = scene?.grid?.units  ?? scene?.gridUnits ?? "";
+  return { distancePerSquare: d || 1, units: u, overridden: false };
+}
+
+/**
+ * Look up a travel mode by id across the GM-customised list.
+ * Returns undefined if not found.
+ * @param {string} id
+ * @returns {object|undefined}
+ */
+export function getTravelModeById(id) {
+  if (!id || id === "none") return undefined;
+  return getTravelModes().find((m) => m.id === id);
 }
 
 export function getViewPixelSizeForScale(scale) {

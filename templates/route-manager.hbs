@@ -192,6 +192,9 @@
     <div class="route-toolbar">
         <button type="button" data-action="draw-route">Draw New Route</button>
         <div class="route-toolbar-actions">
+            <button type="button" data-action="scene-settings" data-tooltip="Scene Distance Scale Override" data-tooltip-direction="DOWN">
+                <i class="fa-solid fa-map"></i>
+            </button>
             <button type="button" data-action="export-routes">Export Routes</button>
             <button type="button" data-action="import-routes">Import Routes</button>
         </div>
@@ -272,6 +275,10 @@
                         <i class="fa-solid fa-clock"></i> {{p.timeAgo}}
                         &nbsp;&bull;&nbsp;
                         {{p.path.length}} waypoints
+                        {{#if p.speedLabel}}
+                        &nbsp;&bull;&nbsp;
+                        <i class="fa-solid fa-person-walking"></i> {{p.speedLabel}}
+                        {{/if}}
                     </div>
                 </div>
                 <div class="proposal-actions">

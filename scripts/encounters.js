@@ -6,7 +6,7 @@
  * for each encounter zone.
  */
 
-import { MODULE_ID } from "./settings.js";
+import { MODULE_ID, getTravelModeById } from "./settings.js";
 
 // ---------------------------------------------------------------------------
 // Default zone factory
@@ -426,9 +426,10 @@ export async function resolveEncounter(result, zone, pos) {
  *
  * @param {EncounterZone}   zone
  * @param {string}          routeId
- * @param {{x:number,y:number}} pos  Current canvas position
+ * @param {{x:number,y:number}} pos         Current canvas position
+ * @param {string|null}     [travelModeId]  Active travel mode (for chance scaling)
  */
-export async function handleZoneFired(zone, routeId, pos) {
+export async function handleZoneFired(zone, routeId, pos, travelModeId = null) {
   // Lazy import to avoid circular dependency with renderer
   const { IndyRouteRenderer } = await import("./renderer.js");
   const { EncounterDialog }   = await import("./apps/encounter-dialog.js");
@@ -446,10 +447,12 @@ export async function handleZoneFired(zone, routeId, pos) {
     return;
   }
 
-  // Chance check (not for fixed)
+  // Chance check (not for fixed) — scaled by travel mode's encounterMult
   if (zone.type !== "fixed") {
-    const chance = Number.isFinite(zone.chance) ? zone.chance : 0.3;
-    if (Math.random() > chance) return;
+    const baseChance = Number.isFinite(zone.chance) ? zone.chance : 0.3;
+    const mult       = getTravelModeById(travelModeId)?.encounterMult ?? 1.0;
+    const effective  = Math.min(1, Math.max(0, baseChance * mult));
+    if (Math.random() > effective) return;
   }
 
   IndyRouteRenderer.pauseRoute(routeId);

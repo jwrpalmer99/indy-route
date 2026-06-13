@@ -1,4 +1,5 @@
-import { MODULE_ID, DEFAULTS, normalizeSettings, getTravelModes, getPlayerRouteMode, PLAYER_ROUTE_MODE } from "../settings.js";
+import { MODULE_ID, DEFAULTS, normalizeSettings, getTravelModes, getPlayerRouteMode, PLAYER_ROUTE_MODE, getSceneDistanceConfig } from "../settings.js";
+import { SceneSettingsDialog } from "./scene-settings.js";
 import { CHANNEL, MSG } from "../constants.js";
 import { IndyRouteRenderer } from "../renderer.js";
 import { IndyRouteTool } from "../tool.js";
@@ -143,8 +144,10 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
   _getRouteLengthLabel(route) {
     if (!route?.points || route.points.length < 2) return "";
     const gridSize = canvas?.grid?.size ?? canvas?.scene?.grid?.size ?? null;
-    const gridDistance = canvas?.scene?.grid?.distance ?? canvas?.scene?.gridDistance ?? null;
-    if (!gridSize || !gridDistance) return "";
+    if (!gridSize) return "";
+    const distCfg = getSceneDistanceConfig();
+    const { distancePerSquare, units: distUnits } = distCfg;
+    if (!distancePerSquare) return "";
     const built = buildRouteFromPoints(route.points, route.settings);
     const path = built?.path ?? route.points;
     let totalPx = 0;
@@ -153,9 +156,9 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       const b = path[i + 1];
       totalPx += Math.hypot(b.x - a.x, b.y - a.y);
     }
-    const totalUnits = (totalPx / gridSize) * gridDistance;
+    const totalUnits = (totalPx / gridSize) * distancePerSquare;
     const useMiles = route?.settings?.travelMode && route.settings.travelMode !== "none";
-    const units = useMiles ? "mi" : (canvas?.scene?.grid?.units ?? canvas?.scene?.gridUnits ?? "units");
+    const units = useMiles ? "mi" : (distUnits || canvas?.scene?.grid?.units ?? "units");
     const rounded = Math.round(totalUnits * 100) / 100;
     const distanceLabel = `Length: ${rounded} ${units}`;
     if (useMiles) {
@@ -224,7 +227,8 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
     const proposals = showProposals
       ? ProposalStore.getAll().map((p) => ({
           ...p,
-          timeAgo: _timeAgo(p.submittedAt)
+          timeAgo:         _timeAgo(p.submittedAt),
+          speedLabel:      p.travelModeLabel ?? p.travelModeId ?? null
         }))
       : [];
 
@@ -258,6 +262,12 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       if (draw) {
         event.preventDefault();
         this._drawRoute();
+        return;
+      }
+      const sceneBtn = event.target?.closest?.("[data-action='scene-settings']");
+      if (sceneBtn) {
+        event.preventDefault();
+        this._openSceneSettings();
         return;
       }
       const exportBtn = event.target?.closest?.("[data-action='export-routes']");
@@ -449,6 +459,10 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
   async close(options = {}) {
     IndyRouteRenderer.clearPreview();
     return super.close(options);
+  }
+
+  _openSceneSettings() {
+    new SceneSettingsDialog().render({ force: true });
   }
 
   async _drawRoute() {

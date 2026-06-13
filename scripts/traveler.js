@@ -36,17 +36,24 @@ Hooks.once("init", () => {
   loadTemplates([
     `modules/${MODULE_ID}/templates/level-check-dialog.hbs`,
     `modules/${MODULE_ID}/templates/encounter-dialog.hbs`,
-    `modules/${MODULE_ID}/templates/encounter-editor.hbs`
+    `modules/${MODULE_ID}/templates/encounter-editor.hbs`,
+    `modules/${MODULE_ID}/templates/player-speed-dialog.hbs`,
+    `modules/${MODULE_ID}/templates/scene-settings.hbs`
   ]);
 
   // Expose encounter helpers on globalThis so renderer.js can use them
   // without a circular ESM import (renderer is a peer, not a child).
   import("./encounters.js").then((enc) => {
     globalThis.__travelerEncounters = {
-      checkZones:      enc.checkZones,
-      handleZoneFired: enc.handleZoneFired,
+      checkZones:        enc.checkZones,
+      handleZoneFired:   enc.handleZoneFired,
       resetZoneTriggers: enc.resetZoneTriggers
     };
+  });
+
+  // Expose clock helper on globalThis for renderer finish() callback.
+  import("./clock.js").then((clk) => {
+    globalThis.__travelerClock = { advanceClock: clk.advanceClock };
   });
 
   /* ------------------------------------------------------------------ */
@@ -125,6 +132,24 @@ Hooks.once("init", () => {
       [PLAYER_ROUTE_MODE.APPROVAL]:  "On — players submit routes for GM approval"
     },
     default: PLAYER_ROUTE_MODE.OFF
+  });
+
+  game.settings.register(MODULE_ID, "worldClockEnabled", {
+    name: "Advance World Clock on Route Playback",
+    hint: "When the GM plays a route with a travel mode, automatically advance game.time.worldTime by the travel duration. Works with Simple Calendar and Seasons & Stars.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+  game.settings.register(MODULE_ID, "playerSpeedPrompt", {
+    name: "Prompt Players for Travel Speed",
+    hint: "When a player submits a pathfinding route, show a dialog to select their travel speed (affects animation and encounter chance).",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
   });
 });
 

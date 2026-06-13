@@ -1,4 +1,4 @@
-import { MODULE_ID, PLAYER_ROUTE_MODE, getPlayerRouteMode, normalizeSettings, applyColorNumbers } from "./settings.js";
+import { MODULE_ID, PLAYER_ROUTE_MODE, getPlayerRouteMode, normalizeSettings, applyColorNumbers, getTravelModeById } from "./settings.js";
 import { CHANNEL } from "./constants.js";
 import { IndyRouteRenderer } from "./renderer.js";
 import { findPath } from "./pathfinding/astar.js";
@@ -316,16 +316,40 @@ async function _submitRoute(path, token) {
   const sceneId = canvas.scene?.id;
   if (!sceneId) return;
 
+  // ── Optional speed prompt ─────────────────────────────────────────────
+  let travelModeId   = null;
+  let travelModeLabel = null;
+
+  let promptSpeed = false;
+  try { promptSpeed = game.settings.get(MODULE_ID, "playerSpeedPrompt"); } catch {}
+
+  if (promptSpeed) {
+    const { PlayerSpeedDialog } = await import("./apps/player-speed-dialog.js");
+    const dialog = new PlayerSpeedDialog({});
+    dialog.render({ force: true });
+    const chosen = await dialog.promise;
+    if (!chosen) return; // player cancelled
+    travelModeId    = chosen;
+    travelModeLabel = getTravelModeById(chosen)?.label ?? chosen;
+  }
+
   // Use the player's colour for the route visuals.
   const base = normalizeSettings(game.settings.get(MODULE_ID, "routeSettings"));
   const playerColor = (game.user.color ?? "#44dd44").toString();
+
+  // Scale drawSpeed by the selected travel mode relative to walk-normal (3 mph)
+  const { scaleDrawSpeed } = await import("./apps/player-speed-dialog.js");
+  const selectedMph = getTravelModeById(travelModeId)?.speedMph ?? 3;
+  const scaledDraw  = scaleDrawSpeed(base.drawSpeed, selectedMph);
+
   const settings = applyColorNumbers({
     ...base,
     lineColor: playerColor,
     dotColor: playerColor,
     labelColor: playerColor,
     // Disable cinematic camera for player routes by default
-    cinematicMovement: false
+    cinematicMovement: false,
+    drawSpeed: scaledDraw
   });
 
   const proposal = {
@@ -338,6 +362,8 @@ async function _submitRoute(path, token) {
     path,
     settings,
     elevations: null,
+    travelModeId,
+    travelModeLabel,
     submittedAt: Date.now()
   };
 
@@ -364,13 +390,15 @@ export function proposalToPayload(proposal) {
 
 function _proposalToPayload(proposal) {
   return {
-    sceneId: proposal.sceneId,
-    path: proposal.path,
-    settings: proposal.settings,
-    startTime: Date.now(),
-    lingerMs: proposal.settings?.lingerMs ?? -1,
-    routeId: proposal.id,
-    labelText: `${proposal.playerName}: ${proposal.tokenName}`,
-    elevations: proposal.elevations ?? null
+    sceneId:      proposal.sceneId,
+    path:         proposal.path,
+    settings:     proposal.settings,
+    startTime:    Date.now(),
+    lingerMs:     proposal.settings?.lingerMs ?? -1,
+    routeId:      proposal.id,
+    labelText:    `${proposal.playerName}: ${proposal.tokenName}`,
+    elevations:   proposal.elevations ?? null,
+    travelModeId: proposal.travelModeId ?? null,
+    encounters:   []
   };
 }

@@ -1,0 +1,80 @@
+<style>
+  .traveler-player-speed-dialog .window-content {
+    padding: 14px 16px;
+  }
+  .traveler-player-speed-dialog .speed-modes {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .traveler-player-speed-dialog .speed-mode-item label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.1s;
+  }
+  .traveler-player-speed-dialog .speed-mode-item label:hover {
+    background: var(--color-bg-option);
+  }
+  .traveler-player-speed-dialog .speed-mode-item input[type="radio"]:checked + .speed-label-text {
+    font-weight: 600;
+  }
+  .traveler-player-speed-dialog .speed-mode-item input[type="radio"]:checked ~ * {
+    font-weight: 600;
+  }
+  .traveler-player-speed-dialog .speed-mode-item:has(input:checked) label {
+    background: var(--color-bg-highlight);
+    border-color: var(--color-border-highlight);
+  }
+  .traveler-player-speed-dialog .speed-label-text {
+    flex: 1;
+  }
+  .traveler-player-speed-dialog .speed-mph {
+    font-size: 0.8em;
+    color: var(--color-text-dark-secondary);
+    white-space: nowrap;
+  }
+  .traveler-player-speed-dialog .speed-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .traveler-player-speed-dialog .speed-actions button {
+    flex: 1;
+    padding: 7px 0;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .traveler-player-speed-dialog .btn-submit {
+    background: var(--color-bg-btn-success, #2d6e2d);
+    color: #fff;
+    border-color: transparent;
+  }
+</style>
+
+<ul class="speed-modes">
+  {{#each modes as |mode|}}
+  <li class="speed-mode-item">
+    <label>
+      <input type="radio" name="travelModeId" value="{{mode.id}}" {{#if mode.selected}}checked{{/if}}>
+      <span class="speed-label-text">{{mode.label}}</span>
+      <span class="speed-mph">{{mode.speedMph}} mph</span>
+    </label>
+  </li>
+  {{/each}}
+</ul>
+
+<div class="speed-actions">
+  <button type="button" class="btn-submit" data-action="submit">
+    <i class="fa-solid fa-check"></i> Submit Route
+  </button>
+  <button type="button" data-action="cancel">
+    Cancel
+  </button>
+</div>
