@@ -13,6 +13,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased] — targeting v2.0.0
 
 ### Commits
+- *(pending)* — 2026-06-13 — Add Party System (party tokens, multi-user checks, party config UI)
 - `e0662db` — 2026-06-13 — Add architecture.md documentation
 - `c3df688` — 2026-06-13 — Uplift to Foundry v14; fork renamed from `indy-route` to `traveler`
 - `5bd191a` — 2026-06-13 — Add v14 Scene Levels support (per-point elevation, level picker, token elevation during playback)
@@ -28,6 +29,48 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `b24889e` — 2026-06-13 — Rewrite README.md for Traveler; add DEVELOPER-README.md
 - `91264e9` — 2026-06-13 — Fix encounter pause: broadcast ENCOUNTER_PAUSE/RESUME to all clients
 - `157af25` — 2026-06-13 — Move compose file to docker/, overhaul .gitignore, update CI and npm scripts
+- *(pending)* — 2026-06-13 — Add Party System (party tokens, multi-user checks, party config UI)
+
+### Added — Party System
+
+When an overland map uses a single **party token** (one token representing the whole group),
+the module now dispatches individual roll-check dialogs to each party member and collects results
+via a GM collector dialog.
+
+**New files:**
+- `scripts/party.js` — Party data model, CRUD helpers, `PartyCheckSession` store, and
+  `resolvePartyCheck` pure logic (4 resolution modes).
+- `scripts/apps/party-config.js` — `PartyConfigApp` (ApplicationV2) for managing party groups.
+- `scripts/apps/party-check-collector.js` — `PartyCheckCollector` (ApplicationV2) shown to the GM
+  while waiting for member rolls; live-updates as each result arrives; has a Force Resolve button.
+- `templates/party-config.hbs` — Party list + inline editor with drag-drop actor assignment.
+- `templates/party-check-collector.hbs` — Roll progress table with pass/fail indicators.
+- `docs/party.plan.md` — Design plan.
+- `tests/unit/party.test.js` — 39 unit tests covering all helpers and resolution modes.
+- `tests/quench/party.quench.js` — Integration test suite (CRUD, socket round-trip, UI open/close).
+
+**Modified files:**
+- `scripts/constants.js` — Added `MSG.PARTY_CHECK_REQUEST`, `MSG.PARTY_CHECK_RESULT`,
+  `MSG.PARTY_CHECK_RESOLVED`.
+- `scripts/behaviors/change-level.js` — `_handleMoveIn` now calls `getPartyForToken`; if the
+  token is a party token the new `_handlePartyMoveIn` method orchestrates the full multi-user
+  socket protocol including chat summary.
+- `scripts/behaviors/level-check-dialog.js` — New `partySessionId` / `partyActorId` constructor
+  options; when set, `_submitResult` emits a `PARTY_CHECK_RESULT` socket message instead of only
+  resolving a local promise.
+- `scripts/traveler.js` — Registers the `parties` world setting and `Configure Parties` menu;
+  loads new templates; adds `PARTY_CHECK_REQUEST` and `PARTY_CHECK_RESULT` socket handlers.
+- `scripts/tool-player.js` — `start()` now falls back to the party token when the current user
+  has no owned token but is a member of the party assigned to a token on the scene.
+
+**Party data model:**
+```
+id, name, partyTokenActorId, memberActorIds[], resolutionMode, designatedActorId, travelPaceMode
+```
+
+**Resolution modes:** `all` | `best` (default) | `majority` | `designated`
+
+**Travel pace modes:** `slowest` | `average` | `fastest`
 
 ### Changed — Repository Housekeeping (pre-push)
 
