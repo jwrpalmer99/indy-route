@@ -262,6 +262,18 @@ export class IndyRouteEditor extends IndyRouteSettingsBase {
     this._rangeDragActive = false;
   }
 
+  /** Returns the list of Scene Level documents for the current scene, or [] when none exist. */
+  _getSceneLevels() {
+    const levels = canvas?.scene?.levels;
+    if (!levels?.size) return [];
+    return Array.from(levels.values()).map((level) => ({
+      id: level.id,
+      name: level.name,
+      elevationBottom: level.elevation?.bottom ?? 0,
+      elevationTop: level.elevation?.top ?? 0
+    }));
+  }
+
   _attachPartListeners(partId, html, options) {
     super._attachPartListeners(partId, html, options);
     if (partId !== "root") return;
@@ -338,7 +350,8 @@ export class IndyRouteEditor extends IndyRouteSettingsBase {
         foundry.utils.deepClone(DEFAULTS),
         this.settings ?? {},
         { inplace: false }
-      )
+      ),
+      sceneLevels: this._getSceneLevels()
     };
   }
 
@@ -389,6 +402,17 @@ export class IndyRouteEditor extends IndyRouteSettingsBase {
   async _handleSave() {
     const updatedSettings = this._readSettingsForm();
     let settings = updatedSettings;
+
+    // When a Level is selected, derive the canonical defaultElevation from it.
+    if (settings.levelId) {
+      const level = canvas?.scene?.levels?.get?.(settings.levelId);
+      if (level?.elevation?.bottom !== undefined) {
+        settings = { ...settings, defaultElevation: level.elevation.bottom };
+      }
+    } else {
+      settings = { ...settings, defaultElevation: 0 };
+    }
+
     if (settings.scaleWithMap && !settings.scaleMapSize) {
       const mapSize = getMapPixelSize();
       if (mapSize) {

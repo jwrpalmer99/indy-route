@@ -394,9 +394,16 @@ export const IndyRouteRenderer = {
       Hooks.once("canvasReady", () => this.render(payload));
       return;
     }
-    const { sceneId, path, settings, startTime, lingerMs, routeId, labelText, preview } = payload ?? {};
+    const { sceneId, path, settings, startTime, lingerMs, routeId, labelText, preview, elevations } = payload ?? {};
     if (game.scenes.current?.id !== sceneId) return;
     if (!Array.isArray(path) || path.length < 2) return;
+
+    // Returns the interpolated elevation for a given path index, or undefined when
+    // no elevation data was supplied (single-level scene, no change needed).
+    const hasElevations = Array.isArray(elevations) && elevations.length === path.length;
+    const getElevationAtIdx = hasElevations
+      ? (i) => elevations[Math.min(Math.max(0, i), elevations.length - 1)]
+      : () => undefined;
 
     const root = this.ensureRoot();
     const { container, finalLine, dot } = this.createRouteContainer(settings);
@@ -511,7 +518,10 @@ export const IndyRouteRenderer = {
       this.moveTokenMarker(marker.tokenDoc, start.x, start.y);
       if (game.user.isGM) {
         const topLeft = this.getTokenTopLeft(marker.tokenDoc, start.x, start.y);
-        marker.tokenDoc.update(topLeft, { animate: false }).catch(() => {});
+        const startElev = getElevationAtIdx(0);
+        const updateData = { ...topLeft };
+        if (Number.isFinite(startElev)) updateData.elevation = startElev;
+        marker.tokenDoc.update(updateData, { animate: false }).catch(() => {});
       }
       return true;
     };
@@ -528,7 +538,7 @@ export const IndyRouteRenderer = {
         if (marker.snapReady) snapTokenToStart();
       });
     }
-    const updateMarker = (x, y, angleRad) => {
+    const updateMarker = (x, y, angleRad, elevation) => {
       if (marker.tokenDoc) {
         this.moveTokenMarker(marker.tokenDoc, x, y);
         if (game.user.isGM) {
@@ -539,7 +549,9 @@ export const IndyRouteRenderer = {
           if (nowMs - marker.lastDocUpdate > intervalMs) {
             marker.lastDocUpdate = nowMs;
             const topLeft = this.getTokenTopLeft(marker.tokenDoc, x, y);
-            marker.tokenDoc.update(topLeft, { animate: false }).catch(() => {});
+            const updateData = { ...topLeft };
+            if (Number.isFinite(elevation)) updateData.elevation = elevation;
+            marker.tokenDoc.update(updateData, { animate: false }).catch(() => {});
           }
         }
         dot.clear();
@@ -636,7 +648,7 @@ export const IndyRouteRenderer = {
         const prev = path[idx - 1];
         const curr = path[idx];
         const angle = Math.atan2(curr.y - prev.y, curr.x - prev.x);
-        updateMarker(curr.x, curr.y, angle);
+        updateMarker(curr.x, curr.y, angle, getElevationAtIdx(idx));
         idx += 1;
       }
       if (t0 >= labelRevealT) maybeShowLabel();
@@ -678,7 +690,7 @@ export const IndyRouteRenderer = {
           const prev = path[idx - 1];
           const curr = path[idx];
           const angle = Math.atan2(curr.y - prev.y, curr.x - prev.x);
-          updateMarker(curr.x, curr.y, angle);
+          updateMarker(curr.x, curr.y, angle, getElevationAtIdx(idx));
           idx += 1;
         }
         if (t >= labelRevealT) maybeShowLabel();
@@ -687,7 +699,10 @@ export const IndyRouteRenderer = {
           ticker.remove(onTick);
           if (marker.tokenDoc && game.user.isGM) {
             const topLeft = this.getTokenTopLeft(marker.tokenDoc, end.x, end.y);
-            marker.tokenDoc.update(topLeft);
+            const finalElev = getElevationAtIdx(path.length - 1);
+            const finalUpdate = { ...topLeft };
+            if (Number.isFinite(finalElev)) finalUpdate.elevation = finalElev;
+            marker.tokenDoc.update(finalUpdate);
           }
           const fadeMs = 500;
           if (soundHandle?.fade) {

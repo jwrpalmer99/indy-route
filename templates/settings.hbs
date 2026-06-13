@@ -135,6 +135,19 @@
         <button type="button" data-action="capture-scale">Use Current View Size</button>
         <p class="hint">Stores the current view size for this route when scaling by map size.</p>
     </div>
+
+    {{#if sceneLevels.length}}
+    <div class="form-group">
+        <label>Scene Level</label>
+        <select name="settings.levelId">
+            <option value="">— No Level —</option>
+            {{#each sceneLevels as |level|}}
+            <option value="{{level.id}}" {{#if (eq ../settings.levelId level.id)}}selected{{/if}}>{{level.name}} ({{level.elevationBottom}}–{{level.elevationTop}})</option>
+            {{/each}}
+        </select>
+        <p class="hint">Assign this route to a Scene Level. Token elevation is updated to match during playback.</p>
+    </div>
+    {{/if}}
     {{/if}}
 
     <div class="form-group">

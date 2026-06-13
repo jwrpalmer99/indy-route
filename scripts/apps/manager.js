@@ -195,10 +195,26 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
     return distanceLabel;
   }
 
+  _getRouteLevelName(route) {
+    if (!canvas?.scene?.levels?.size) return null;
+    const levelId = route?.settings?.levelId;
+    if (levelId) {
+      const level = canvas.scene.levels.get(levelId);
+      if (level?.name) return level.name;
+    }
+    const defaultElev = route?.settings?.defaultElevation;
+    if (Number.isFinite(defaultElev)) {
+      const level = canvas?.inferLevelFromElevation?.(defaultElev);
+      if (level?.name) return level.name;
+    }
+    return null;
+  }
+
   async _prepareContext() {
     const routes = getSceneRoutes().map((route) => ({
       ...route,
-      lengthLabel: this._getRouteLengthLabel(route)
+      lengthLabel: this._getRouteLengthLabel(route),
+      levelName: this._getRouteLevelName(route)
     }));
     return {
       routes,
@@ -448,7 +464,8 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       startTime: Date.now(),
       lingerMs: built.settings.lingerMs,
       routeId,
-      labelText: route.name
+      labelText: route.name,
+      elevations: built.elevations ?? null
     };
     game.socket.emit(CHANNEL, { type: "TRAVELER_ROUTE", payload });
     IndyRouteRenderer.render(payload);
@@ -467,7 +484,8 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       lingerMs: built.settings.lingerMs,
       routeId,
       labelText: route.name,
-      preview: true
+      preview: true,
+      elevations: built.elevations ?? null
     };
     IndyRouteRenderer.render(payload);
   }
@@ -591,7 +609,11 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
         .map((r) => ({
           id: r.id ?? foundry.utils.randomID(),
           name: (r.name ?? "Imported Route").toString(),
-          points: r.points.map((p) => ({ x: Number(p.x), y: Number(p.y) })),
+          points: r.points.map((p) => {
+            const point = { x: Number(p.x), y: Number(p.y) };
+            if (Number.isFinite(p.elevation)) point.elevation = Number(p.elevation);
+            return point;
+          }),
           settings: normalizeSettings({ ...DEFAULTS, ...(r.settings ?? {}) }),
           createdAt: r.createdAt ?? Date.now(),
           updatedAt: Date.now()
@@ -615,7 +637,11 @@ export class IndyRouteManager extends foundry.applications.api.HandlebarsApplica
       baseSettings: route.settings,
       autoPlay: false,
       onComplete: async (data) => {
-        route.points = data.points.map((p) => ({ x: p.x, y: p.y }));
+        route.points = data.points.map((p) => {
+          const point = { x: p.x, y: p.y };
+          if (Number.isFinite(p.elevation)) point.elevation = p.elevation;
+          return point;
+        });
         route.updatedAt = Date.now();
         await setSceneRoutes(routes);
         this.selectedId = route.id;

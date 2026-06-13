@@ -44,7 +44,11 @@ export const DEFAULTS = {
   smoothingMode: "catmull", // "none" | "catmull" | "chaikin"
 
   catmullSamplesPerSegment: 16,
-  catmullAlpha: 0.5
+  catmullAlpha: 0.5,
+
+  // v14 Scene Levels — stored on the route settings so they travel with the route record.
+  levelId: null,          // Scene Level document ID this route is associated with.
+  defaultElevation: 0     // Canonical elevation (level.elevation.bottom) for this route.
 };
 
 export const DEFAULT_TRAVEL_MODES = [
@@ -209,6 +213,8 @@ export function normalizeSettings(s) {
     showEndX: !!s.showEndX,
     renderAboveTokens: !!s.renderAboveTokens,
     scaleWithMap: !!s.scaleWithMap,
-    cinematicMovement: !!s.cinematicMovement
+    cinematicMovement: !!s.cinematicMovement,
+    levelId: s.levelId ?? null,
+    defaultElevation: num(s.defaultElevation) ?? 0
   };
 }

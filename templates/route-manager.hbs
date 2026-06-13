@@ -93,6 +93,20 @@
     .traveler-manager .route-item.dragging {
         opacity: 0.65;
     }
+    .traveler-manager .route-level-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 1px 6px;
+        border-radius: 10px;
+        font-size: 0.7em;
+        font-weight: 600;
+        color: var(--color-text-light-highlight);
+        background: var(--color-bg-highlight);
+        border: 1px solid var(--color-border-highlight);
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
 </style>
 
 <form class="traveler-manager">
@@ -113,6 +127,11 @@
                             <i class="fa-solid fa-grip-dots-vertical"></i>
                         </span>
                         <input class="route-name" type="text" data-action="rename-route" data-route-id="{{route.id}}" value="{{route.name}}" maxlength="50" />
+                        {{#if route.levelName}}
+                        <span class="route-level-badge" data-tooltip="Scene Level: {{route.levelName}}" data-tooltip-direction="UP">
+                            <i class="fa-solid fa-layer-group"></i> {{route.levelName}}
+                        </span>
+                        {{/if}}
                         {{#if route.lengthLabel}}
                         <span class="route-info" data-tooltip="{{route.lengthLabel}}" data-tooltip-direction="UP" data-tooltip-class="traveler-tooltip">
                             <i class="fa-solid fa-ruler"></i>

@@ -35,7 +35,11 @@ export const IndyRouteTool = {
 
     this.state = {
       active: true,
-      points: Array.isArray(options.initialPoints) ? options.initialPoints.map((p) => ({ x: p.x, y: p.y })) : [],
+      points: Array.isArray(options.initialPoints) ? options.initialPoints.map((p) => {
+        const point = { x: p.x, y: p.y };
+        if (Number.isFinite(p.elevation)) point.elevation = p.elevation;
+        return point;
+      }) : [],
       container,
       preview,
       baseSettings: options.baseSettings ? normalizeSettings(options.baseSettings) : null,
@@ -57,7 +61,13 @@ export const IndyRouteTool = {
 
     ui.notifications.info("Route: Left-click points. Double-click or Enter to finish. Backspace removes last. Esc cancels.");
 
-    const getCanvasPos = () => ({ x: canvas.mousePosition.x, y: canvas.mousePosition.y });
+    // Capture x/y plus the bottom elevation of the currently viewed Scene Level (v14).
+    // Falls back to 0 when no levels are defined, keeping single-level scenes unaffected.
+    const getCanvasPos = () => {
+      const level = canvas?.level;
+      const elevation = level?.elevation?.bottom ?? 0;
+      return { x: canvas.mousePosition.x, y: canvas.mousePosition.y, elevation };
+    };
 
     const drawPreview = (mousePos) => {
       let s = this.state.settings;

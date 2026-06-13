@@ -163,6 +163,7 @@ Hooks.once("ready", () => {
     if (!sceneId) return null;
     let path = Array.isArray(options.path) ? options.path : null;
     let settings = null;
+    let elevations = null;
     if (!path && Array.isArray(options.points)) {
       const baseSettings = applyRouteOverrides(
         options.settings ?? game.settings.get(MODULE_ID, "routeSettings"),
@@ -171,6 +172,7 @@ Hooks.once("ready", () => {
       const built = buildRouteFromPoints(options.points, baseSettings);
       path = built.path;
       settings = built.settings;
+      elevations = built.elevations ?? null;
     } else if (path) {
       const baseSettings = applyRouteOverrides(
         options.settings ?? game.settings.get(MODULE_ID, "routeSettings"),
@@ -186,7 +188,8 @@ Hooks.once("ready", () => {
       startTime: Number.isFinite(options.startTime) ? options.startTime : Date.now(),
       lingerMs: Number.isFinite(options.lingerMs) ? options.lingerMs : settings.lingerMs,
       routeId: options.routeId ?? null,
-      labelText: options.name ?? options.labelText ?? ""
+      labelText: options.name ?? options.labelText ?? "",
+      elevations
     };
   };
 
@@ -248,7 +251,8 @@ Hooks.once("ready", () => {
         startTime: Number.isFinite(options.startTime) ? options.startTime : Date.now(),
         lingerMs: Number.isFinite(options.lingerMs) ? options.lingerMs : settings.lingerMs,
         routeId: id,
-        labelText: options.labelText ?? route.name
+        labelText: options.labelText ?? route.name,
+        elevations: built.elevations ?? null
       };
       game.socket.emit(CHANNEL, { type: "TRAVELER_ROUTE", payload });
       IndyRouteRenderer.render(payload);

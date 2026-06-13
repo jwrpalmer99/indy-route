@@ -37,6 +37,56 @@ function resample(points, stepPx) {
   return out;
 }
 
+/**
+ * Builds a per-path-point elevation array by arc-length interpolation from the
+ * raw waypoints.  Returns null when no waypoint carries elevation data, so
+ * callers can omit elevation from single-level scenes gracefully.
+ */
+function buildElevationsForPath(rawPoints, path) {
+  if (!rawPoints.some((p) => Number.isFinite(p.elevation))) return null;
+
+  // Fill any gaps by inheriting the previous known elevation (forward fill).
+  let lastElev = 0;
+  const elevs = rawPoints.map((p) => {
+    if (Number.isFinite(p.elevation)) lastElev = p.elevation;
+    return lastElev;
+  });
+
+  if (elevs.length < 2) return path.map(() => elevs[0] ?? 0);
+
+  // Cumulative arc-length of raw waypoints.
+  const rawCum = [0];
+  for (let i = 1; i < rawPoints.length; i++) {
+    rawCum.push(rawCum[i - 1] + Math.hypot(
+      rawPoints[i].x - rawPoints[i - 1].x,
+      rawPoints[i].y - rawPoints[i - 1].y
+    ));
+  }
+  const totalRaw = rawCum[rawCum.length - 1];
+
+  // Cumulative arc-length of (smoothed + resampled) path points.
+  const pathCum = [0];
+  for (let i = 1; i < path.length; i++) {
+    pathCum.push(pathCum[i - 1] + Math.hypot(
+      path[i].x - path[i - 1].x,
+      path[i].y - path[i - 1].y
+    ));
+  }
+  const totalPath = pathCum[pathCum.length - 1];
+
+  if (totalRaw <= 0 || totalPath <= 0) return path.map(() => elevs[0]);
+
+  return path.map((_, pi) => {
+    // Map this path point's arc-length fraction onto the raw-waypoint arc space.
+    const rawArc = (pathCum[pi] / totalPath) * totalRaw;
+    let seg = 1;
+    while (seg < rawCum.length - 1 && rawCum[seg] < rawArc) seg++;
+    const segLen = rawCum[seg] - rawCum[seg - 1];
+    const localT = segLen > 1e-6 ? (rawArc - rawCum[seg - 1]) / segLen : 0;
+    return elevs[seg - 1] + (elevs[seg] - elevs[seg - 1]) * Math.min(1, Math.max(0, localT));
+  });
+}
+
 export function buildRouteFromPoints(points, baseSettings) {
   const s = normalizeSettings(baseSettings);
   let smooth;
@@ -60,7 +110,8 @@ export function buildRouteFromPoints(points, baseSettings) {
 
   const colored = applyColorNumbers(scaledSettings);
   const path = resample(smooth, colored.sampleStepPx);
-  return { path, settings: colored, smoothPoints: smooth };
+  const elevations = buildElevationsForPath(points, path);
+  return { path, settings: colored, smoothPoints: smooth, elevations };
 }
 
 export function getSceneRoutes(scene = canvas?.scene) {
@@ -88,7 +139,11 @@ export function createRouteRecord(points, baseSettings, name) {
   return {
     id: foundry.utils.randomID(),
     name: name || `Route ${now}`,
-    points: points.map((p) => ({ x: p.x, y: p.y })),
+    points: points.map((p) => {
+      const point = { x: p.x, y: p.y };
+      if (Number.isFinite(p.elevation)) point.elevation = p.elevation;
+      return point;
+    }),
     settings,
     createdAt: now,
     updatedAt: now
