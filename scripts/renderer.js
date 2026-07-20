@@ -10,23 +10,64 @@ const labelRenderer = new IndyRouteLabelRenderer();
 
 export const IndyRouteRenderer = {
   ensureRoot() {
-    window.__indyRouteBroadcast ??= { containers: [], preview: null, previewRouteId: null };
+    window.__indyRouteBroadcast ??= { containers: [], preview: null, previewRouteId: null, activeRoutes: new Map() };
+    if (!window.__indyRouteBroadcast.activeRoutes) window.__indyRouteBroadcast.activeRoutes = new Map();
     return window.__indyRouteBroadcast;
+  },
+
+  isRouteActive(routeId) {
+    if (!routeId) return false;
+    const root = this.ensureRoot();
+    return root.activeRoutes.has(routeId);
+  },
+
+  pauseRoute(routeId) {
+    if (!routeId) return false;
+    const root = this.ensureRoot();
+    const state = root.activeRoutes.get(routeId);
+    if (!state?.started || state.paused) return false;
+    state.paused = true;
+    state.pausedAt = Date.now();
+    state.soundHandle?.pause?.();
+    Hooks.callAll("indyRoutePlaybackStateChanged", { routeId });
+    return true;
+  },
+
+  resumeRoute(routeId) {
+    if (!routeId) return false;
+    const root = this.ensureRoot();
+    const state = root.activeRoutes.get(routeId);
+    if (!state || !state.paused) return false;
+    state.paused = false;
+    const pausedDuration = Date.now() - (state.pausedAt ?? Date.now());
+    state.pausedMs = (state.pausedMs ?? 0) + pausedDuration;
+    state.pausedAt = null;
+    state.soundHandle?.play?.()?.catch?.(() => {});
+    Hooks.callAll("indyRoutePlaybackStateChanged", { routeId });
+    return true;
   },
 
   clearLocal() {
     const root = this.ensureRoot();
+    const hadActiveRoutes = root.activeRoutes.size > 0;
+    for (const state of root.activeRoutes.values()) {
+      try { state.soundHandle?.stop?.(); } catch {}
+    }
     for (const entry of root.containers) {
       const c = entry?.container ?? entry;
       try { c.destroy({ children: true }); } catch {}
     }
     root.containers.length = 0;
+    root.activeRoutes.clear();
     this.clearPreview();
+    if (hadActiveRoutes) Hooks.callAll("indyRoutePlaybackStateChanged", { routeId: null });
   },
 
   clearRoute(routeId) {
     if (!routeId) return;
     const root = this.ensureRoot();
+    const state = root.activeRoutes.get(routeId);
+    try { state?.soundHandle?.stop?.(); } catch {}
     for (let i = root.containers.length - 1; i >= 0; i--) {
       const entry = root.containers[i];
       if (entry?.routeId !== routeId) continue;
@@ -34,6 +75,8 @@ export const IndyRouteRenderer = {
       try { c.destroy({ children: true }); } catch {}
       root.containers.splice(i, 1);
     }
+    root.activeRoutes.delete(routeId);
+    if (state) Hooks.callAll("indyRoutePlaybackStateChanged", { routeId });
     if (root.preview && root.previewRouteId === routeId) {
       try { root.preview.destroy({ children: true }); } catch {}
       root.preview = null;
@@ -411,10 +454,38 @@ export const IndyRouteRenderer = {
     const introMs = canAnimateCamera
       ? (Number.isFinite(settings.introMs) ? settings.introMs : DEFAULTS.introMs)
       : 0;
-    const pauseMs = canAnimateCamera
+    const pauseMsInit = canAnimateCamera
       ? (Number.isFinite(settings.pauseMs) ? settings.pauseMs : DEFAULTS.pauseMs)
       : 0;
-    const startTimeAdjusted = startTime + introMs + pauseMs;
+    const startTimeAdjusted = startTime + introMs + pauseMsInit;
+
+    // Register active route state for pause/resume tracking
+    const activeState = {
+      routeId: routeId ?? null,
+      labelText: labelText ?? "",
+      startTime,
+      startTimeAdjusted,
+      durationSec: duration,
+      totalLen,
+      settings,
+      started: false,
+      paused: false,
+      pausedAt: null,
+      pausedMs: 0,
+      elapsedSec: Math.max(0, Math.min((Date.now() - startTimeAdjusted) / 1000, duration)),
+      soundHandle: null,
+      getElapsedSec: () => activeState.elapsedSec,
+      getRemainingMs: () => {
+        return Math.max(0, (activeState.durationSec - activeState.getElapsedSec()) * 1000);
+      },
+      getProgress: () => {
+        return activeState.durationSec > 0 ? activeState.getElapsedSec() / activeState.durationSec : 1;
+      }
+    };
+    if (routeId) {
+      root.activeRoutes.set(routeId, activeState);
+      Hooks.callAll("indyRoutePlaybackStateChanged", { routeId });
+    }
     const labelPosition = Number.isFinite(settings.labelPosition) ? settings.labelPosition : 50;
     const labelSpanInfo = settings.labelFollowPath
       ? labelRenderer.computeLabelSpanInfo(path, settings, labelText)
@@ -447,6 +518,7 @@ export const IndyRouteRenderer = {
             ticker.remove(onFade);
             return;
           }
+          if (activeState.paused) return;
           fadeElapsed += delta / 60;
           const t = Math.min(1, fadeElapsed / duration);
           display.alpha = t;
@@ -577,7 +649,7 @@ export const IndyRouteRenderer = {
 
     const easeInOut = (t) => t * t * (3 - 2 * t);
     const now = Date.now();
-    let elapsed = Math.max(0, (now - startTimeAdjusted) / 1000);
+    let elapsed = activeState.elapsedSec;
     const shouldAnimateCamera = canAnimateCamera && elapsed < duration;
     if (shouldAnimateCamera) {
       canvas.animatePan({ x: start.x, y: start.y, scale: cameraScale, duration: introMs });
@@ -588,6 +660,12 @@ export const IndyRouteRenderer = {
       const end = path[path.length - 1];
       this.drawEndX(container, end.x, end.y, settings, settings.lineWidth * 2);
       if (!labelShown) maybeShowLabel();
+
+      activeState.elapsedSec = duration;
+      if (routeId && root.activeRoutes.get(routeId) === activeState) {
+        root.activeRoutes.delete(routeId);
+        Hooks.callAll("indyRoutePlaybackStateChanged", { routeId });
+      }
 
       // lingerMs: >0 remove after ms; otherwise persist
       if (typeof lingerMs === "number" && lingerMs > 0) {
@@ -603,10 +681,12 @@ export const IndyRouteRenderer = {
       }
     };
 
-    let soundHandle = null;
     let soundPromise = null;
 
     const startAnimation = () => {
+      if (container?.destroyed || (routeId && root.activeRoutes.get(routeId) !== activeState)) return;
+      activeState.started = true;
+      if (routeId) Hooks.callAll("indyRoutePlaybackStateChanged", { routeId });
       const ticker = canvas.app.ticker;
       const cam = { x: start.x, y: start.y };
       if (settings.routeSound) {
@@ -618,8 +698,9 @@ export const IndyRouteRenderer = {
             return null;
           }
         }).then((sound) => {
-          soundHandle = sound ?? null;
-          return soundHandle;
+          activeState.soundHandle = sound ?? null;
+          if (activeState.paused) activeState.soundHandle?.pause?.();
+          return activeState.soundHandle;
         });
       }
 
@@ -654,7 +735,11 @@ export const IndyRouteRenderer = {
           ticker.remove(onTick);
           return;
         }
+        // Skip tick if paused
+        if (routeId && activeState.paused) return;
+
         elapsed += delta / 60;
+        activeState.elapsedSec = Math.min(elapsed, duration);
 
         const t = Math.min(1, elapsed / duration);
         const tSmooth = easeInOut(t);
@@ -687,12 +772,12 @@ export const IndyRouteRenderer = {
             marker.tokenDoc.update(topLeft);
           }
           const fadeMs = 500;
-          if (soundHandle?.fade) {
-            soundHandle.fade(0, fadeMs);
+          if (activeState.soundHandle?.fade) {
+            activeState.soundHandle.fade(0, fadeMs);
           } else if (soundPromise) {
             soundPromise.then((sound) => sound?.fade?.(0, fadeMs));
-          } else if (soundHandle?.stop) {
-            soundHandle.stop();
+          } else if (activeState.soundHandle?.stop) {
+            activeState.soundHandle.stop();
           }
           if (shouldAnimateCamera) panToPosition(end.x, end.y, cameraScale);
           finish();

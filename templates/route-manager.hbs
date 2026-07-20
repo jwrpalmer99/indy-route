@@ -93,6 +93,12 @@
     .indy-route-manager .route-item.dragging {
         opacity: 0.65;
     }
+    .indy-route-manager button[data-action='toggle-pause-route'] {
+        color: var(--color-level-warning, #e8a000);
+    }
+    .indy-route-manager button[data-action='toggle-pause-route'].is-paused {
+        color: var(--color-level-success, #3a8a3a);
+    }
 </style>
 
 <form class="indy-route-manager">
@@ -120,9 +126,15 @@
                         {{/if}}
                     </div>
                     <div class="route-actions">
-                        <button type="button" data-action="play-route" data-route-id="{{route.id}}" data-tooltip="Play">
-                            <i class="fa-solid fa-play"></i>
-                        </button>
+                        {{#if route.isActive}}
+                            <button type="button" data-action="toggle-pause-route" data-route-id="{{route.id}}" data-tooltip="{{#if route.isStarting}}Cinematic lead-in{{else}}{{#if route.isPaused}}Resume{{else}}Pause{{/if}}{{/if}}" class="{{#if route.isPaused}}is-paused{{/if}}" {{#if route.isStarting}}disabled{{/if}}>
+                                <i class="fa-solid {{#if route.isStarting}}fa-hourglass-start{{else}}{{#if route.isPaused}}fa-play{{else}}fa-pause{{/if}}{{/if}}"></i>
+                            </button>
+                        {{else}}
+                            <button type="button" data-action="play-route" data-route-id="{{route.id}}" data-tooltip="Play">
+                                <i class="fa-solid fa-play"></i>
+                            </button>
+                        {{/if}}
                         <button type="button" data-action="preview-route" data-route-id="{{route.id}}" data-tooltip="Preview">
                             <i class="fa-solid fa-eye"></i>
                         </button>
