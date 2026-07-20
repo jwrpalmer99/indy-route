@@ -88,7 +88,7 @@ Hooks.on("getSceneControlButtons", (controls) => {
     icon: "fa-solid fa-route",
     button: true,
     visible: game.user.isGM,
-    onClick: () => IndyRouteManager.show()
+    onChange: () => IndyRouteManager.show()
   };
 
   drawings.tools.indyRouteClear = {
@@ -97,7 +97,7 @@ Hooks.on("getSceneControlButtons", (controls) => {
     icon: "fa-solid fa-eraser",
     button: true,
     visible: game.user.isGM,
-    onClick: () => IndyRouteTool.clearAllBroadcast()
+    onChange: () => IndyRouteTool.clearAllBroadcast()
   };
 });
 
