@@ -82,6 +82,18 @@
         padding-left: 0;
         font-style: italic;
     }
+    .indy-route-settings .form-group .hint.full-width {
+        grid-column: 1 / -1;
+        margin-top: 4px;
+    }
+    .indy-route-settings .token-picker {
+        grid-column: 2 / 3;
+        display: flex;
+        gap: 6px;
+    }
+    .indy-route-settings .token-picker input {
+        min-width: 0;
+    }
 </style>
 
 <form onsubmit="return false;">
@@ -201,9 +213,14 @@
     </div>
 
     <div class="form-group">
-        <label>Dot Token UUID</label>
-        <input type="text" name="settings.dotTokenUuid" value="{{settings.dotTokenUuid}}" placeholder="Actor/Token UUID" data-drop="dot-token-uuid" />
-        <p class="hint">Drop an Actor/Token or paste a UUID to use a token sprite instead of the dot.</p>
+        <label>Moving Token</label>
+        <div class="token-picker">
+            <input type="text" name="settings.dotTokenUuid" value="{{settings.dotTokenUuid}}" placeholder="Select a token or drop an Actor" data-drop="dot-token-uuid" />
+            <button type="button" data-action="use-selected-token" data-tooltip="Use selected canvas token">
+                <i class="fa-solid fa-crosshairs"></i> Use Selected
+            </button>
+        </div>
+        <p class="hint full-width">Select a canvas token and click Use Selected to move it and reveal fog. Dropping an Actor only uses its image unless that Actor already has a token in this scene.</p>
     </div>
 
     <div class="form-group">

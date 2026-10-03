@@ -122,6 +122,24 @@ export class IndyRouteSettingsBase extends foundry.applications.api.HandlebarsAp
         this._setActiveTab(tabTarget.dataset.tab, root);
         return;
       }
+      const selectedTokenTarget = event.target?.closest?.("[data-action='use-selected-token']");
+      if (selectedTokenTarget) {
+        event.preventDefault();
+        const selected = canvas?.tokens?.controlled ?? [];
+        if (selected.length !== 1) {
+          ui.notifications.warn("Select exactly one token on the canvas first.");
+          return;
+        }
+        const input = root.querySelector("[name='settings.dotTokenUuid']");
+        input.value = selected[0].document.uuid;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        if (selected[0].document.sight?.enabled === false) {
+          ui.notifications.warn("Token selected, but its Vision is disabled. Enable Vision to reveal fog.");
+        } else {
+          ui.notifications.info(`Using ${selected[0].name} as the moving token.`);
+        }
+        return;
+      }
       const saveTarget = event.target?.closest?.("[data-action='save']");
       if (saveTarget) {
         event.preventDefault();
